@@ -1,4 +1,7 @@
 fastapi
 uvicorn
 openai
+<<<<<<< HEAD
 
+=======
+>>>>>>> d8c5d1f (Initial backend with main.py + Swagger fix)
