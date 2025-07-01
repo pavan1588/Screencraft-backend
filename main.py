@@ -37,7 +37,7 @@ async def analyze_scene(request: Request):
             return {"error": "No scene text provided."}
 
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",  # You can switch to gpt-4 if you have access
+            model="gpt-3.5-turbo", 
             messages=[
                 {
                     "role": "user",
