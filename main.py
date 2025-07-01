@@ -1,47 +1,45 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import openai
 import os
 
 app = FastAPI()
 
-# ✅ CORS Middleware to allow frontend access
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Replace with frontend domain in production
+    allow_origins=["*"],  # In production, replace with frontend domain
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# ✅ Load OpenAI API Key from environment variable
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+# ✅ Define request body schema
+class SceneRequest(BaseModel):
+    scene_text: str
 
 @app.get("/")
 def root():
     return {"message": "SceneCraft API is running"}
 
-# ✅ Keepalive route for testing
 @app.get("/ping")
 def ping():
     return {"status": "ok"}
 
-# ✅ Main analysis route with full error handling
 @app.post("/analyze")
-async def analyze_scene(request: Request):
+async def analyze_scene(scene: SceneRequest):
     try:
-        body = await request.json()
-        scene_text = body.get("scene_text", "")
-
-        if not scene_text:
+        if not scene.scene_text:
             return {"error": "No scene text provided."}
 
         response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo", 
+            model="gpt-3.5-turbo",
             messages=[
                 {
                     "role": "user",
-                    "content": f"Analyze this movie scene for narrative beats, tone, emotion and cinematic structure:\n{scene_text}"
+                    "content": f"Analyze this movie scene:\n{scene.scene_text}"
                 }
             ]
         )
@@ -52,4 +50,3 @@ async def analyze_scene(request: Request):
         return {"error": "Invalid or missing OpenAI API key."}
     except Exception as e:
         return {"error": str(e)}
-
