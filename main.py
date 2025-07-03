@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-# CORS setup
+# CORS for frontend access
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,9 +16,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Input structure
 class SceneRequest(BaseModel):
     scene: str
 
+# Basic input check
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     if len(text.strip()) < 30:
@@ -27,6 +29,7 @@ def is_valid_scene(text: str) -> bool:
         return False
     return True
 
+# Main route
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -45,28 +48,26 @@ async def analyze_scene(request: SceneRequest):
         "X-Title": "SceneCraft"
     }
 
-    # Enriched prompt for high-fidelity cinematic analysis
     prompt = f"""
-You are SceneCraft AI — a human-like cinematic analyst working at a global film studio.
+You are SceneCraft AI — a professional cinematic analyst working for a global production studio.
 
-Your job is to analyze the following scene like a top development executive would — drawing from benchmarks in cinema, literature, psychology, and real-world experience.
+Analyze the input scene holistically. Internally consider:
+- Scene progression and emotional beats
+- Genre conventions and expectations from today’s global audiences
+- Character realism, emotional depth, and behavioral credibility
+- Audience relatability based on modern and timeless social contexts
+- The psychological realism of responses and interactions
+- Implied visual elements (camera, lighting, tone, editing) if present
+- Influences from real-life events and literary scene-building techniques
+- Structural originality (e.g. nonlinear storytelling, jump cuts, visual grammar)
 
-Write a cohesive, natural, fluent response (no lists, no labels, no categories), but analyze based on the following **internally**:
+Do not label or display categories or technical terms. Write like a seasoned human reader/analyst from a studio’s development team — insightful, fluent, unbiased.
 
-- Scene flow and emotional beats
-- Structural integrity (linear or nonlinear)
-- Originality of writing style or narrative choices
-- Genre alignment and modern audience expectations
-- Behavioral realism based on real-world emotional reactions
-- Scene relatability to real-life situations and global culture
-- Effectiveness of subtext, pacing, rhythm, or visual language (if implied)
-- Use of contemporary and timeless storytelling principles found in novels, real events, and globally acclaimed screenwriting
+Predict what modern viewers might feel while watching this scene and why it would or wouldn’t resonate.
 
-Also predict how this might resonate with a modern audience — what they would feel, and why.
+End with one visible section titled “Suggestions” with clear, helpful, human-style creative advice. Use phrases like “You may want to…”, “It could help to…”, “Consider exploring…”
 
-At the end, include one final visible section titled “Suggestions” with natural, human phrasing (e.g., “You may want to…”, “It could help to…”, “Consider exploring…”). Do not reveal any structural markers or cinematic categories in the output.
-
-Here is the scene input:
+Here is the scene to analyze:
 
 \"\"\"{request.scene}\"\"\"
 """
@@ -76,12 +77,14 @@ Here is the scene input:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a professional cinematic analyst. You follow all internal benchmarks for scene, realism, originality, structure, and genre, but never label or show categories. Your response must read like a natural human evaluation and end with a 'Suggestions' section only."
+                "content": (
+                    "You are an experienced studio-grade cinematic analyst. "
+                    "You analyze film scenes and scripts with internal understanding of emotional beats, genre, realism, originality, visual implication, and writing influence. "
+                    "Never mention any category or technical term explicitly. "
+                    "The output must feel like a natural human analysis ending in a 'Suggestions' section."
+                )
             },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "user", "content": prompt}
         ]
     }
 
@@ -105,6 +108,7 @@ Here is the scene input:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Health check
 @app.get("/")
 def root():
     return {"message": "SceneCraft backend is live."}
