@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-# Enable CORS
+# CORS Middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,7 +64,7 @@ End only with a section titled: Suggestions — with clear, implementable, techn
 Do not quote specific filmmakers, films, or novels. Do not use assumptions about intent unless inferred directly from the text.
 
 Here is the input:
-"""{request.scene}"""
+\"\"\"{request.scene}\"\"\"
 """
 
     payload = {
