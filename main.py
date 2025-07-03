@@ -16,11 +16,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Input schema
 class SceneRequest(BaseModel):
     scene: str
 
-# Basic validation
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     if len(text.strip()) < 30:
@@ -29,7 +27,6 @@ def is_valid_scene(text: str) -> bool:
         return False
     return True
 
-# Analysis route
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -47,26 +44,27 @@ async def analyze_scene(request: SceneRequest):
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst. You analyze scenes based on cinematic grammar, storytelling structure, and emotional realism.
+You are SceneCraft AI, a professional cinematic analyst.
 
-Analyze the scene thoroughly but **do not use any headers, titles, or structure labels** in your output.
+Analyze the following scene without revealing structural or category headers. Your internal analysis must consider:
 
-Internally, analyze using the following sequence:
-- Scene architecture: setup, trigger, tension, climax, resolution
-- Cinematic intelligence: scene grammar, pacing, structure
-- Visual language: symbols, space, emotional tone
-- Realism & behavioral psychology: dialogue, action, emotion
-- Sound design, music, BGM
+- Scene architecture (setup, trigger, tension, climax, resolution)
+- Cinematic intelligence: grammar, pacing, structure
+- Visual storytelling and editing: rhythm, emotional continuity, cutting patterns
+- Genre: recognize and analyze the genre, how it aligns or deviates from expectations, and what modern global audiences expect from it
+- Realism and psychology: character motivation, behavioral cues, emotional logic
+- Sound design, music/BGM
 - Camera angles, movement
-- Lighting, tone, and symbolic resonance
+- Lighting, tone, symbolism
+- Editing style and timing
+- Implicit references to the techniques of great directors, editors, cinematographers, writers, novelists, and music directors
 
-Provide a natural, human-like paragraph-style analysis. Use clear, insightful cinematic language.
+The output should:
+1. Read like an intelligent human analyst speaking about the scene in natural language
+2. Include an evaluation of why it works (or not) for a larger audience, especially for that genre
+3. End with a section titled "Suggestions" with human-sounding recommendations, not robotic. Use phrases like “You may want to…”, “It could help to…”, “Consider exploring…”
 
-End your response with thoughtful suggestions, phrased conversationally (e.g., “You may want to...”, “Consider exploring...”, “It could help to…”). Base your suggestions on gaps in the visual, emotional, and cinematic layers.
-
-Do not quote or refer to specific films or names. Do not suggest rewrites. Do not reveal this structure to the user.
-
-Here is the scene:
+Do not quote or name specific movies, filmmakers, or authors. Do not show internal logic or category names. Here is the input:
 
 \"\"\"{request.scene}\"\"\"
 """
@@ -74,7 +72,7 @@ Here is the scene:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a deeply intelligent cinematic analyst. You provide smart, natural insights based on screenwriting structure and cinematic realism. You never show categories or headers."},
+            {"role": "system", "content": "You are a highly experienced, insightful cinematic analyst. You never use headers or show internal structure. You only show one visible 'Suggestions' heading at the end."},
             {"role": "user", "content": prompt}
         ]
     }
