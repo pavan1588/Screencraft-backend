@@ -48,22 +48,20 @@ async def analyze_scene(request: SceneRequest):
     prompt = f"""
 You are SceneCraft AI, a studio-grade cinematic analyst trusted by global film production houses.
 
-Perform a deep, technically grounded analysis of the input. Internally structure your reasoning around:
+Perform a deeply technical and human-grade analysis of the cinematic input based on:
 
-- Scene Architecture: beats, pacing, structure
-- Genre alignment and resonance with modern global audience
-- Scene grammar, logic, tone, narrative cohesion
-- Character realism and behavioral psychology
-- Use of visuals, camera movement, lighting, symbolism, and sound — only if evident or clearly implied
-- Novelistic scene construction, real-world storytelling references (no specific names or quotes)
+- Scene structure and beats
+- Genre and modern audience resonance
+- Realism, psychology, behavior
+- Camera, sound, tone, editing, visual storytelling — only if clearly suggested
+- Novelist and real-world storytelling influences (no names or quotations)
 
-Do not show these categories to the user. Write like a professional human analyst. Be technically grounded and avoid vague praise or speculation.
+Do not use capitalized section headers, bullet points, numbered lists, or outline formatting. Never label categories. Do not define techniques. Do not explain what you're doing.
 
-End with a clearly titled section: Suggestions — giving implementable and intelligent improvement ideas.
+Write a flowing, human, paragraph-based analysis that feels like a professional's take. At the end, include a short section titled "Suggestions" — without calling attention to the cinematic categories behind them. These should be implementable ideas phrased in natural language.
 
 Here is the input:
-
-\"\"\"{request.scene}\"\"\"
+"""{request.scene}"""
 """
 
     payload = {
@@ -71,7 +69,7 @@ Here is the input:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a precise, studio-grade cinematic analyst. You never show category names. Your analysis ends with one 'Suggestions' section."
+                "content": "You are a precise, studio-grade cinematic analyst. You never expose internal logic or headings. You avoid capitalized titles, outlines, or list formats. Only show a human-sounding analysis followed by a short section labeled 'Suggestions'."
             },
             {
                 "role": "user",
@@ -99,4 +97,4 @@ Here is the input:
 
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is live!"}
+    return {"message"
