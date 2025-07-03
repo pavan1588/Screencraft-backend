@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-# CORS Middleware
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -46,22 +46,24 @@ async def analyze_scene(request: SceneRequest):
     }
 
     prompt = f"""
-You are SceneCraft AI, a studio-grade cinematic analyst trusted by global film production houses.
+You are SceneCraft AI — a globally trusted cinematic analyst working with film studios.
 
-Perform a deeply technical and human-grade analysis of the cinematic input based on:
+Perform a high-grade, precise, studio-level analysis of the scene provided. Your reasoning should internally follow professional filmmaking benchmarks — including but not limited to:
 
-- Scene structure and beats
-- Genre and modern audience resonance
-- Realism, psychology, behavior
-- Camera, sound, tone, editing, visual storytelling — only if clearly suggested
-- Novelist and real-world storytelling influences (no names or quotations)
+- Scene structure, tension beats, resolution
+- Cinematic grammar and logic
+- Genre effectiveness and audience resonance
+- Psychological and emotional realism
+- Use of visuals, camera, editing, tone, and sound — only if implied or described
+- Literary scene-building principles based on novels and real-event narratives
 
-Do not use capitalized section headers, bullet points, numbered lists, or outline formatting. Never label categories. Do not define techniques. Do not explain what you're doing.
+Do not show or name these categories. Avoid technical jargon, definitions, or formatting. Your output should be a fluid, intelligent, natural human critique.
 
-Write a flowing, human, paragraph-based analysis that feels like a professional's take. At the end, include a short section titled "Suggestions" — without calling attention to the cinematic categories behind them. These should be implementable ideas phrased in natural language.
+Only at the end, add one clear section titled “Suggestions” — using natural phrasing like “You may want to...”, “Consider using...”, etc.
 
-Here is the input:
-"""{request.scene}"""
+Now analyze the following input:
+
+\"\"\"{request.scene}\"\"\"
 """
 
     payload = {
@@ -69,7 +71,7 @@ Here is the input:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a precise, studio-grade cinematic analyst. You never expose internal logic or headings. You avoid capitalized titles, outlines, or list formats. Only show a human-sounding analysis followed by a short section labeled 'Suggestions'."
+                "content": "You are a human-level cinematic analyst. You write in clear, fluid prose without showing internal categories or formatting. Do not label sections, and only include one visible 'Suggestions' section at the end."
             },
             {
                 "role": "user",
@@ -97,4 +99,4 @@ Here is the input:
 
 @app.get("/")
 def root():
-    return {"message"
+    return {"message": "SceneCraft backend is live!"}
