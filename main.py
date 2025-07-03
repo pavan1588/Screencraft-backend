@@ -1,61 +1,67 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-import openai
+import httpx
 import os
 
 app = FastAPI()
 
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with frontend domain
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-# ✅ Define request body schema
+# Request model
 class SceneRequest(BaseModel):
-    scene_text: str
+    scene: str
 
 @app.get("/")
-def root():
-    return {"message": "SceneCraft API is running"}
-
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
+def read_root():
+    return {"message": "SceneCraft backend is live!"}
 
 @app.post("/analyze")
-async def analyze_scene(scene: SceneRequest):
+async def analyze_scene(request: SceneRequest):
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
+
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "HTTP-Referer": "https://yourapp.com",  # Replace with your app domain
+        "X-Title": "SceneCraft",
+        "Content-Type": "application/json"
+    }
+
+    prompt = (
+        "As a cinematic analyst, assess this scene strictly without quoting actual movie titles.\n"
+        "Focus on:\n"
+        "- Why the scene works / doesn’t work\n"
+        "- Scene grammar\n"
+        "- Realism (based on therapy transcripts, behavioral psychology, and natural dialogue)\n"
+        "- Strong and weak points\n"
+        f"\nScene:\n{request.scene}"
+    )
+
+    payload = {
+        "model": "mistralai/mistral-7b-instruct",
+        "messages": [
+            {"role": "system", "content": "You are a professional film scene analyst."},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
     try:
-        if not scene.scene_text:
-            return {"error": "No scene text provided."}
-
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {
-                    "role": "user",
-                    "content": f"""As a cinematic analyst, assess this scene strictly without quoting actual movie titles.
-Focus on:
-- Why the scene works / doesn’t work
-- Scene grammar
-- Realism (based on therapy transcripts, behavioral psychology, and natural dialogue)
-- Strong and weak points
-
-Scene:
-{scene.scene_text}
-"""
-                }
-            ]
-        )
-
-        return {"analysis": response.choices[0].message.content.strip()}
-
-    except openai.error.AuthenticationError:
-        return {"error": "Invalid or missing OpenAI API key."}
+        async with httpx.AsyncClient() as client:
+            response = await client.post(url, headers=headers, json=payload)
+            response.raise_for_status()
+            result = response.json()
+            return {"analysis": result["choices"][0]["message"]["content"]}
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
