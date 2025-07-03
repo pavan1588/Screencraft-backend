@@ -16,11 +16,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Input structure
 class SceneRequest(BaseModel):
     scene: str
 
-# Basic input check
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     if len(text.strip()) < 30:
@@ -29,7 +27,6 @@ def is_valid_scene(text: str) -> bool:
         return False
     return True
 
-# Main route
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -49,25 +46,25 @@ async def analyze_scene(request: SceneRequest):
     }
 
     prompt = f"""
-You are SceneCraft AI — a professional cinematic analyst working for a global production studio.
+You are SceneCraft AI — a highly trained cinematic story analyst.
 
-Analyze the input scene holistically. Internally consider:
+Write a technically sound, unbiased, professional-grade analysis of the input scene or script excerpt.
+
+Follow this internal evaluation logic — but do NOT display any structural terms or analysis labels:
+
 - Scene progression and emotional beats
-- Genre conventions and expectations from today’s global audiences
-- Character realism, emotional depth, and behavioral credibility
-- Audience relatability based on modern and timeless social contexts
-- The psychological realism of responses and interactions
-- Implied visual elements (camera, lighting, tone, editing) if present
-- Influences from real-life events and literary scene-building techniques
-- Structural originality (e.g. nonlinear storytelling, jump cuts, visual grammar)
+- Genre conventions and modern global audience resonance
+- Depth of character motivation, psychological realism, and dramatic effectiveness
+- Authenticity of dialogue and conflict grounded in real emotional cues
+- Whether visuals, tone, sound, or editing are implied effectively (only if hinted)
+- Influences of real-world storytelling or literary scene construction
+- Structural or stylistic choices (e.g., nonlinear, visual storytelling, experimental pacing)
 
-Do not label or display categories or technical terms. Write like a seasoned human reader/analyst from a studio’s development team — insightful, fluent, unbiased.
+Output a natural, human-like response. If the scene lacks depth or dramatic weight, respectfully highlight it. Avoid flattery. Help the writer improve.
 
-Predict what modern viewers might feel while watching this scene and why it would or wouldn’t resonate.
+End with a single section titled “Suggestions” that offers actionable insights, phrased in a natural, empowering way (e.g., “You may want to…”, “It could help to…”, “Consider exploring…”).
 
-End with one visible section titled “Suggestions” with clear, helpful, human-style creative advice. Use phrases like “You may want to…”, “It could help to…”, “Consider exploring…”
-
-Here is the scene to analyze:
+Here is the scene:
 
 \"\"\"{request.scene}\"\"\"
 """
@@ -78,10 +75,11 @@ Here is the scene to analyze:
             {
                 "role": "system",
                 "content": (
-                    "You are an experienced studio-grade cinematic analyst. "
-                    "You analyze film scenes and scripts with internal understanding of emotional beats, genre, realism, originality, visual implication, and writing influence. "
-                    "Never mention any category or technical term explicitly. "
-                    "The output must feel like a natural human analysis ending in a 'Suggestions' section."
+                    "You are a senior story analyst at a global film studio. "
+                    "Your feedback is insightful, constructive, and creative. "
+                    "You evaluate each scene with technical rigor and cinematic intelligence, "
+                    "and offer empowering, unbiased suggestions in a human voice. "
+                    "You NEVER show category names — only a final section called 'Suggestions'."
                 )
             },
             {"role": "user", "content": prompt}
@@ -108,7 +106,6 @@ Here is the scene to analyze:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-# Health check
 @app.get("/")
 def root():
     return {"message": "SceneCraft backend is live."}
