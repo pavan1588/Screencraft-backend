@@ -6,7 +6,7 @@ import os
 
 app = FastAPI()
 
-# CORS
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,7 +15,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Request model
+# Request schema
 class SceneRequest(BaseModel):
     scene: str
 
@@ -32,26 +32,27 @@ async def analyze_scene(request: SceneRequest):
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "https://yourapp.com",  # Replace with your app domain
+        "HTTP-Referer": "https://yourapp.com",
         "X-Title": "SceneCraft",
         "Content-Type": "application/json"
     }
 
     prompt = (
-        "As a cinematic analyst, assess this scene strictly without quoting actual movie titles.\n"
-        "Focus on:\n"
-        "- Why the scene works / doesn’t work\n"
-        "- Scene grammar\n"
-        "- Realism (based on therapy transcripts, behavioral psychology, and natural dialogue)\n"
+        "As a cinematic analyst with deep understanding of cinematic intelligence and benchmarks, "
+        "assess the following scene. Focus strictly on analysis without quoting actual movie scripts or generating new scenes.\n"
+        "Your output must include:\n"
+        "- Why the scene works or doesn’t work\n"
+        "- Scene grammar (structure, pacing, flow)\n"
+        "- Realism based on therapy transcripts, natural dialogue, and behavioral psychology\n"
         "- Strong and weak points\n"
-        f"\nScene:\n{request.scene}"
+        "Use comparative cinematic examples without quoting original material."
     )
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a professional film scene analyst."},
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": request.scene}
         ]
     }
 
