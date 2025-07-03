@@ -52,21 +52,21 @@ Analyze the following scene without revealing structural or category headers. Yo
 - Cinematic intelligence: grammar, pacing, structure
 - Visual storytelling and editing: rhythm, emotional continuity, cutting patterns
 - Genre: recognize and analyze the genre, how it aligns or deviates from expectations, and what modern global audiences expect from it
-- Realism and psychology: character motivation, behavioral cues, emotional logic
-- Sound design, music/BGM
-- Camera angles, movement
-- Lighting, tone, symbolism
-- Editing style and timing
-- Implicit references to the techniques of great directors, editors, cinematographers, writers, novelists, and music directors
+- Realism and psychology: character motivation, behavioral cues, emotional logic, using references to real events and psychological depth often found in literary fiction and biographies
+- Sound design, music/BGM: only if these elements are implied or directly present in the scene
+- Camera angles, movement: only if described or implied
+- Lighting, tone, symbolism: only if narratively evident
+- Editing style and timing: analyze pacing and transitions only if contextual clues allow
+- Use intuitive reasoning influenced by directors, editors, novelists, and other cinematic minds — but without naming them
 
 The output should:
 1. Read like an intelligent human analyst speaking about the scene in natural language
 2. Include an evaluation of why it works (or not) for a larger audience, especially for that genre
 3. End with a section titled "Suggestions" with human-sounding recommendations, not robotic. Use phrases like “You may want to…”, “It could help to…”, “Consider exploring…”
 
-Do not quote or name specific movies, filmmakers, or authors. Do not show internal logic or category names. Here is the input:
+Avoid commenting on elements like sound, lighting, or editing if the input does not indicate or imply them. Do not quote or name specific movies, filmmakers, or authors. Do not show internal logic or category names. Here is the input:
 
-\"\"\"{request.scene}\"\"\"
+"""{request.scene}"""
 """
 
     payload = {
