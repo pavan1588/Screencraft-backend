@@ -1,12 +1,13 @@
+# === main.py ===
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
 import os
-import re
 
 app = FastAPI()
 
+# CORS Setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,6 +16,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Request schema
 class SceneRequest(BaseModel):
     scene: str
 
@@ -24,39 +26,41 @@ def read_root():
 
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
-    scene_text = request.scene.strip()
-
-    # Basic validation to reject short, non-script content
-    if len(scene_text.split()) < 15 or not re.search(r'[.!?,\n]', scene_text):
-        raise HTTPException(status_code=400, detail="Input does not resemble a cinematic scene or script. Please provide valid content such as a dialogue, monologue, or movie scenario.")
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
+    scene_text = request.scene.strip()
+    if len(scene_text) < 20 or scene_text.lower() in ["hi", "hello", "hey", "test"]:
+        raise HTTPException(status_code=400, detail="Please enter a valid scene, script, monologue, or cinematic situation.")
+
     url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "https://yourapp.com",  # Replace as needed
+        "HTTP-Referer": "https://yourapp.com",
         "X-Title": "SceneCraft",
         "Content-Type": "application/json"
     }
 
-    prompt = (
-        "As a cinematic analyst with cinematic intelligence and cinema benchmarks, assess the following scene. "
-        "Do NOT quote actual movie titles or generate a scene. Just analyze it based on:\n"
+    system_prompt = (
+        "You are a cinematic scene analyst with expertise in behavioral psychology, realism from therapy transcripts, "
+        "and cinematic storytelling techniques. You must NOT generate scenes. Instead, analyze ONLY if the input is a valid scene, "
+        "script, monologue, character interaction, or movie scenario.\n\n"
+        "Do NOT respond to greetings or incomplete prompts. If the input is not valid scene material, return: 'Invalid input for cinematic analysis.'\n\n"
+        "If valid, analyze the scene using:\n"
         "- Why the scene works / doesn’t work\n"
-        "- Scene grammar\n"
-        "- Realism (based on therapy transcripts, behavioral psychology, and natural dialogue)\n"
-        "- Strong and weak points\n\n"
-        f"Scene:\n{scene_text}"
+        "- Scene grammar (structure, setup, payoff)\n"
+        "- Realism (authenticity, dialogue vs. monologue)\n"
+        "- Behavioral cues (psychological depth, interaction style)\n"
+        "- Strong and weak points (objectively highlighted)\n\n"
+        "Avoid quoting real movies or titles. Use scene analysis logic only."
     )
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a professional cinematic scene analyst."},
-            {"role": "user", "content": prompt}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": scene_text}
         ]
     }
 
