@@ -50,8 +50,4 @@ async def analyze_scene(scene: SceneRequest):
         return {"error": "Invalid or missing OpenAI API key."}
     except Exception as e:
         return {"error": str(e)}
-<<<<<<< HEAD
-=======
-
-
->>>>>>> d8c5d1f (Initial backend with main.py + Swagger fix)
+d8c5d1f (Initial backend with main.py + Swagger fix)
