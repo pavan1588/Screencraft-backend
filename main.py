@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-# Allow frontend access
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,9 +16,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Input schema
 class SceneRequest(BaseModel):
     scene: str
 
+# Basic validation
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     if len(text.strip()) < 30:
@@ -27,6 +29,7 @@ def is_valid_scene(text: str) -> bool:
         return False
     return True
 
+# Analysis route
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -44,26 +47,26 @@ async def analyze_scene(request: SceneRequest):
     }
 
     prompt = f"""
-You are SceneCraft AI, a cinematic expert trained in storytelling structure, realism, behavioral psychology, and visual storytelling.
+You are SceneCraft AI, a professional cinematic analyst. You analyze scenes based on cinematic grammar, storytelling structure, and emotional realism.
 
-The user has submitted a scene, dialogue, monologue, or script excerpt.
+Analyze the scene thoroughly but **do not use any headers, titles, or structure labels** in your output.
 
-Analyze it deeply using the following parameters **internally**, but do not mention these terms in the output:
+Internally, analyze using the following sequence:
+- Scene architecture: setup, trigger, tension, climax, resolution
+- Cinematic intelligence: scene grammar, pacing, structure
+- Visual language: symbols, space, emotional tone
+- Realism & behavioral psychology: dialogue, action, emotion
+- Sound design, music, BGM
+- Camera angles, movement
+- Lighting, tone, and symbolic resonance
 
-- Scene beats: setup, trigger, tension, climax, resolution
-- Scene grammar and structure
-- Realism, character behavior, dialogue psychology
-- Visual and emotional cinematic elements (camera, music, sound, visual cues, symbolic design)
+Provide a natural, human-like paragraph-style analysis. Use clear, insightful cinematic language.
 
-Only return **suggestions** that will improve the cinematic value of the input. These must be in a natural, professional tone. Avoid titles, headers, or categories in your output. Use phrasing like:
-- “You may want to consider...”
-- “It could help to introduce...”
-- “Try using...”
-- “To enhance this moment…”
+End your response with thoughtful suggestions, phrased conversationally (e.g., “You may want to...”, “Consider exploring...”, “It could help to…”). Base your suggestions on gaps in the visual, emotional, and cinematic layers.
 
-Do not quote or reference real films or scripts. Do not generate or rewrite the input. Focus only on thoughtful human-style cinematic suggestions.
+Do not quote or refer to specific films or names. Do not suggest rewrites. Do not reveal this structure to the user.
 
-Here is the input for analysis:
+Here is the scene:
 
 \"\"\"{request.scene}\"\"\"
 """
@@ -71,7 +74,7 @@ Here is the input for analysis:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a cinematic scene analyst. Speak with intelligent, professional tone. Offer only suggestions. Do not use headers."},
+            {"role": "system", "content": "You are a deeply intelligent cinematic analyst. You provide smart, natural insights based on screenwriting structure and cinematic realism. You never show categories or headers."},
             {"role": "user", "content": prompt}
         ]
     }
