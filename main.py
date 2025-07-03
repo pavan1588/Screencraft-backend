@@ -50,27 +50,27 @@ Analyze the scene below as a deeply thoughtful and human-like expert in cinemati
 
 - Scene architecture (setup, trigger, tension, climax, resolution)
 - Cinematic intelligence: structure, pacing, scene rhythm
-- Realism and psychology: evaluate character behavior, motivations, and emotions like a novelist drawing from real-world stories and human behavior
-- Visual storytelling (camera movement, angles, lighting, symbolism) — only if inferred or directly described
-- Editing, sound design, music/BGM — only when cues are present or strongly implied in the text
-- Consider storytelling techniques found in historical fiction, biographies, and literary novels — apply their influence naturally
-- Evaluate genre and audience alignment: what makes it compelling or disconnected from contemporary global audiences
+- Realism and psychology: character behavior, motivations, and emotional logic — like a novelist or memoirist drawing from real-world insight
+- Visual storytelling (camera, lighting, symbolism) — only if explicitly present or implied
+- Editing, sound/music — only if directly suggested by the scene
+- Literary depth: apply insights from biographical and literary storytelling
+- Genre analysis: assess genre conventions and audience expectations globally
 
 Output:
-- Write in a natural, human, intelligent voice without showing analysis structure
-- Explain why the scene may or may not work and why it resonates (or doesn’t)
-- Only display one titled section at the end: Suggestions
-- Do not name or quote specific works or authors
-- Do not comment on sound/music/lighting/etc. unless contextually relevant
+- Sound like a human film analyst, not a tool
+- Explain why it resonates or not
+- Do not reveal structural logic
+- End with a section titled: Suggestions
+- Do not name or quote real films, books, or creators
 
 Here is the scene:
-"""{request.scene}"""
+\"\"\"{request.scene}\"\"\"
 """
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a highly experienced, insightful cinematic analyst. You write like a thoughtful human. Never show internal analysis structure. Only end with a 'Suggestions' section."},
+            {"role": "system", "content": "You are a thoughtful, intelligent film analyst. You write like a human. Never show categories. End with only a 'Suggestions' section."},
             {"role": "user", "content": prompt}
         ]
     }
