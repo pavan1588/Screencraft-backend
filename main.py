@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-# CORS
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -16,9 +16,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Input model
 class SceneRequest(BaseModel):
     scene: str
 
+# Basic validation
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     if len(text.strip()) < 30:
@@ -27,6 +29,7 @@ def is_valid_scene(text: str) -> bool:
         return False
     return True
 
+# Main endpoint
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -45,23 +48,23 @@ async def analyze_scene(request: SceneRequest):
         "X-Title": "SceneCraft"
     }
 
+    # Prompt to instruct AI for natural, benchmark-driven analysis (no labels shown)
     prompt = f"""
-You are SceneCraft AI — a globally trusted cinematic analyst working with film studios.
+You are SceneCraft AI, a professional cinematic analyst trained to evaluate scenes as per studio-grade, globally recognized filmmaking and screenwriting practices.
 
-Perform a high-grade, precise, studio-level analysis of the scene provided. Your reasoning should internally follow professional filmmaking benchmarks — including but not limited to:
+Evaluate the scene naturally — relying on your understanding of:
 
-- Scene structure, tension beats, resolution
-- Cinematic grammar and logic
-- Genre effectiveness and audience resonance
-- Psychological and emotional realism
-- Use of visuals, camera, editing, tone, and sound — only if implied or described
-- Literary scene-building principles based on novels and real-event narratives
+- Scene progression and emotional beats
+- Genre conventions and modern audience preferences
+- Character psychology, realism, and dramatic effectiveness
+- How well visuals, sound, tone, or editing are implied
+- Real-event storytelling and literary scene-writing influences
 
-Do not show or name these categories. Avoid technical jargon, definitions, or formatting. Your output should be a fluid, intelligent, natural human critique.
+Do not show or label any categories or techniques. Just write a cohesive, intelligent human-like critique that feels natural and film-professional.
 
-Only at the end, add one clear section titled “Suggestions” — using natural phrasing like “You may want to...”, “Consider using...”, etc.
+Only at the end, add a clearly marked “Suggestions” section using natural, conversational phrasing like “You may want to...”, “It could help to...”, etc.
 
-Now analyze the following input:
+Here is the input scene:
 
 \"\"\"{request.scene}\"\"\"
 """
@@ -71,7 +74,7 @@ Now analyze the following input:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a human-level cinematic analyst. You write in clear, fluid prose without showing internal categories or formatting. Do not label sections, and only include one visible 'Suggestions' section at the end."
+                "content": "You are a studio-grade cinematic analyst. You analyze scenes using internal benchmarks but never mention them. Do not show section titles or category names, except for one final 'Suggestions' section written naturally."
             },
             {
                 "role": "user",
@@ -93,10 +96,14 @@ Now analyze the following input:
                 "analysis": result["choices"][0]["message"]["content"]
             }
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"OpenRouter API error: {e.response.text}"
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+# Health check
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is live!"}
+    return {"message": "SceneCraft backend is live."}
