@@ -16,12 +16,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Input model
 class SceneRequest(BaseModel):
     scene: str
 
 def is_valid_scene(text: str) -> bool:
-    """Reject greetings, short text, and clearly invalid inputs"""
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     if len(text.strip()) < 30:
         return False
@@ -36,32 +34,56 @@ async def analyze_scene(request: SceneRequest):
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
     if not is_valid_scene(request.scene):
-        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script for analysis."}
+        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt."}
 
     headers = {
         "Authorization": f"Bearer {api_key}",
-        "HTTP-Referer": "https://yourapp.com",  # Optional, update if required
-        "X-Title": "SceneCraft",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://yourapp.com",
+        "X-Title": "SceneCraft"
     }
 
-    # NEW PROMPT (reference-free, grounded in screencraft)
-    prompt = (
-        "You are SceneCraft AI, a cinematic analyst with deep knowledge of screenwriting, behavioral psychology, "
-        "and storytelling structure. Analyze the following input strictly from a cinematic perspective.\n\n"
-        "Avoid references to real films or scenes. Do not quote or suggest rewrites. Focus on:\n"
-        "- Scene grammar, structure, pacing, and tone\n"
-        "- Realism of character behavior and dialogue\n"
-        "- Use of psychological authenticity, conflict, and narrative dynamics\n"
-        "- Strengths and weaknesses of cinematic choices based on screenwriting principles\n\n"
-        "Identify whether it appears to be a scene, monologue, dialogue, or full script and analyze accordingly.\n\n"
-        f"Input:\n{request.scene}"
-    )
+    prompt = f"""
+You are SceneCraft AI, a cinematic intelligence analyst. The user has submitted a scene or script excerpt.
+
+Break down the analysis into the following categories in a natural, intelligent, human voice. Do not quote any known films or scenes.
+
+---
+1. **Scene Architecture**:
+   - Setup
+   - Trigger
+   - Rising Tension
+   - Climax
+   - Resolution
+   (If beats are missing, suggest how they might be added naturally.)
+
+2. **Cinematic Intelligence**:
+   - Scene Grammar (structure, rhythm, progression)
+   - Realism & Psychological Authenticity
+   - Dialogue/Subtext
+   - Character Motivations & Emotional Arcs
+
+3. **Visual & Emotional Language**:
+   - Visual Cues (setting, symbols, body language)
+   - Sound Design / Music / BGM
+   - Camera Movement / Angles
+   - Lighting, Tone, Symbolism
+
+4. **Suggestions**:
+   Offer recommendations in a kind, human tone. 
+   Use phrases like “You may want to...” or “Consider adding…” to improve weak or missing aspects. 
+   Be constructive, not robotic.
+
+---
+Analyze this input accordingly:
+
+\"\"\"{request.scene}\"\"\"
+"""
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a professional cinematic scene analyst. You do not quote or reference any specific films."},
+            {"role": "system", "content": "You are a cinematic scene analyst. You speak in an insightful, human tone. You do not reference real movies."},
             {"role": "user", "content": prompt}
         ]
     }
