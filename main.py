@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-# Enable CORS for all origins (adjust if needed for production)
+# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -44,33 +44,33 @@ async def analyze_scene(request: SceneRequest):
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst.
+You are SceneCraft AI, a studio-grade cinematic analyst trusted by global film production houses.
 
-Analyze the scene below as a deeply thoughtful and human-like expert in cinematic storytelling. Internally apply:
+Perform a deep, technical analysis of the provided cinematic input using established cinematic principles. Your evaluation should include:
 
-- Scene architecture (setup, trigger, tension, climax, resolution)
-- Cinematic intelligence: structure, pacing, scene rhythm
-- Realism and psychology: character behavior, motivations, and emotional logic — like a novelist or memoirist drawing from real-world insight
-- Visual storytelling (camera, lighting, symbolism) — only if explicitly present or implied
-- Editing, sound/music — only if directly suggested by the scene
-- Literary depth: apply insights from biographical and literary storytelling
-- Genre analysis: assess genre conventions and audience expectations globally
+- Scene Architecture: structure, pacing, beats (setup, trigger, tension, climax, resolution)
+- Genre Alignment: identify genre, evaluate if the scene fulfills core genre conventions, and how well it resonates with contemporary global audiences
+- Cinematic Intelligence: story logic, transitions, scene grammar, dramatic arc, stakes, tension
+- Realism & Psychology: character actions, behavioral credibility, emotional realism
+- Visual Language (only when clearly present): camera, lighting, blocking, symbolism
+- Sound/Music/Editing (only if explicitly referenced or contextually inferred)
+- Cohesion and implementation feasibility at the production level
+- Remove speculation; no guesses. Make evidence-based observations
 
-Output:
-- Sound like a human film analyst, not a tool
-- Explain why it resonates or not
-- Do not reveal structural logic
-- End with a section titled: Suggestions
-- Do not name or quote real films, books, or creators
+Deliver a studio-level analysis in a cohesive, technically sound, and professional tone.
+Do not expose internal categories or structures in the output. Write as a high-level studio analyst.
 
-Here is the scene:
-\"\"\"{request.scene}\"\"\"
+End only with a section titled: Suggestions — with clear, implementable, technically feasible improvements.
+Do not quote specific filmmakers, films, or novels. Do not use assumptions about intent unless inferred directly from the text.
+
+Here is the input:
+"""{request.scene}"""
 """
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a thoughtful, intelligent film analyst. You write like a human. Never show categories. End with only a 'Suggestions' section."},
+            {"role": "system", "content": "You are a precise, unbiased, studio-grade cinematic analyst. Avoid assumptions. Only show a 'Suggestions' section in the end."},
             {"role": "user", "content": prompt}
         ]
     }
