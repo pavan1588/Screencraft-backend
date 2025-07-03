@@ -34,7 +34,9 @@ async def analyze_scene(request: SceneRequest):
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
     if not is_valid_scene(request.scene):
-        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt."}
+        return {
+            "error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt."
+        }
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -46,25 +48,22 @@ async def analyze_scene(request: SceneRequest):
     prompt = f"""
 You are SceneCraft AI, a studio-grade cinematic analyst trusted by global film production houses.
 
-Perform a deep, technical analysis of the provided cinematic input using established cinematic principles. Your evaluation should be structured internally around:
+Perform a deep, technically grounded analysis of the input. Internally structure your reasoning around:
 
-- Scene Architecture: structure, pacing, beats (setup, trigger, tension, climax, resolution)
-- Genre Alignment: identify genre, evaluate if the scene fulfills core genre conventions, and how well it resonates with contemporary global audiences
-- Cinematic Intelligence: story logic, transitions, scene grammar, dramatic arc, stakes, tension
-- Realism & Psychology: character actions, behavioral credibility, emotional realism
-- Visual Language (only when clearly present): camera, lighting, blocking, symbolism
-- Sound/Music/Editing (only if explicitly referenced or contextually inferred)
-- Cohesion and implementation feasibility at the production level
-- Avoid assumptions; rely on observable cues and evidence only
+- Scene Architecture: beats, pacing, structure
+- Genre alignment and resonance with modern global audience
+- Scene grammar, logic, tone, narrative cohesion
+- Character realism and behavioral psychology
+- Use of visuals, camera movement, lighting, symbolism, and sound — only if evident or clearly implied
+- Novelistic scene construction, real-world storytelling references (no specific names or quotes)
 
-Deliver a studio-level analysis in a cohesive, technically sound, and professional tone.
-Do not expose internal categories or structures in the output.
+Do not show these categories to the user. Write like a professional human analyst. Be technically grounded and avoid vague praise or speculation.
 
-End only with a section titled: Suggestions — with clear, implementable, technically feasible improvements.
-Do not quote specific filmmakers, films, or novels. Do not include analysis headers or section titles except for "Suggestions".
+End with a clearly titled section: Suggestions — giving implementable and intelligent improvement ideas.
 
 Here is the input:
-"""{request.scene}"""
+
+\"\"\"{request.scene}\"\"\"
 """
 
     payload = {
@@ -72,9 +71,12 @@ Here is the input:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a precise, unbiased, studio-grade cinematic analyst. You do not reveal structural categories or headings. You only show one heading: 'Suggestions' at the end."
+                "content": "You are a precise, studio-grade cinematic analyst. You never show category names. Your analysis ends with one 'Suggestions' section."
             },
-            {"role": "user", "content": prompt}
+            {
+                "role": "user",
+                "content": prompt
+            }
         ]
     }
 
@@ -87,7 +89,9 @@ Here is the input:
             )
             response.raise_for_status()
             result = response.json()
-            return {"analysis": result["choices"][0]["message"]["content"]}
+            return {
+                "analysis": result["choices"][0]["message"]["content"]
+            }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
