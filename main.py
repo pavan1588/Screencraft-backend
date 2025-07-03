@@ -46,7 +46,7 @@ async def analyze_scene(request: SceneRequest):
     prompt = f"""
 You are SceneCraft AI, a studio-grade cinematic analyst trusted by global film production houses.
 
-Perform a deep, technical analysis of the provided cinematic input using established cinematic principles. Your evaluation should include:
+Perform a deep, technical analysis of the provided cinematic input using established cinematic principles. Your evaluation should be structured internally around:
 
 - Scene Architecture: structure, pacing, beats (setup, trigger, tension, climax, resolution)
 - Genre Alignment: identify genre, evaluate if the scene fulfills core genre conventions, and how well it resonates with contemporary global audiences
@@ -55,22 +55,25 @@ Perform a deep, technical analysis of the provided cinematic input using establi
 - Visual Language (only when clearly present): camera, lighting, blocking, symbolism
 - Sound/Music/Editing (only if explicitly referenced or contextually inferred)
 - Cohesion and implementation feasibility at the production level
-- Remove speculation; no guesses. Make evidence-based observations
+- Avoid assumptions; rely on observable cues and evidence only
 
 Deliver a studio-level analysis in a cohesive, technically sound, and professional tone.
-Do not expose internal categories or structures in the output. Write as a high-level studio analyst.
+Do not expose internal categories or structures in the output.
 
 End only with a section titled: Suggestions — with clear, implementable, technically feasible improvements.
-Do not quote specific filmmakers, films, or novels. Do not use assumptions about intent unless inferred directly from the text.
+Do not quote specific filmmakers, films, or novels. Do not include analysis headers or section titles except for "Suggestions".
 
 Here is the input:
-\"\"\"{request.scene}\"\"\"
+"""{request.scene}"""
 """
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a precise, unbiased, studio-grade cinematic analyst. Avoid assumptions. Only show a 'Suggestions' section in the end."},
+            {
+                "role": "system",
+                "content": "You are a precise, unbiased, studio-grade cinematic analyst. You do not reveal structural categories or headings. You only show one heading: 'Suggestions' at the end."
+            },
             {"role": "user", "content": prompt}
         ]
     }
