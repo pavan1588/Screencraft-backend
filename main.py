@@ -39,15 +39,23 @@ async def analyze_scene(scene: SceneRequest):
             messages=[
                 {
                     "role": "user",
-                    "content": f"Analyze this movie scene:\n{scene.scene_text}"
+                    "content": f"""As a cinematic analyst, assess this scene strictly without quoting actual movie titles.
+Focus on:
+- Why the scene works / doesn’t work
+- Scene grammar
+- Realism (based on therapy transcripts, behavioral psychology, and natural dialogue)
+- Strong and weak points
+
+Scene:
+{scene.scene_text}
+"""
                 }
             ]
         )
 
-        return {"analysis": response.choices[0].message.content}
+        return {"analysis": response.choices[0].message.content.strip()}
 
     except openai.error.AuthenticationError:
         return {"error": "Invalid or missing OpenAI API key."}
     except Exception as e:
         return {"error": str(e)}
-d8c5d1f (Initial backend with main.py + Swagger fix)
