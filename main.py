@@ -7,7 +7,7 @@ import re
 
 app = FastAPI()
 
-# CORS
+# Enable CORS for all origins (adjust if needed for production)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
