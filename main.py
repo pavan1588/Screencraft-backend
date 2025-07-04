@@ -139,7 +139,7 @@ Output should:
 - Help writers and studios understand scene potential and weaknesses
 - End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language
 
-Here is the scene for review:
+Here is the scene for review. Assume all character names are proper nouns and should not be expanded or altered semantically:
 
 {data.scene}
 """
