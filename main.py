@@ -26,8 +26,8 @@ class SceneRequest(BaseModel):
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     banned_keywords = [
-        "give", "provide", "generate", "write", "create", "compose", "produce",
-        "draft", "develop", "construct", "build", "make up", "invent"
+        "give", "provide", "generate", "write", "create", "compose",
+        "produce", "draft", "develop", "construct", "build", "make up", "invent"
     ]
     text_lower = text.lower()
     if len(text.strip()) < 30:
@@ -54,7 +54,9 @@ async def analyze_scene(request: SceneRequest):
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
     if not is_valid_scene(request.scene):
-        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt for analysis. Scene generation is not supported."}
+        return {
+            "error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt for analysis. Scene generation is not supported."
+        }
 
     readability = analyze_scene_readability(request.scene)
 
@@ -68,19 +70,18 @@ async def analyze_scene(request: SceneRequest):
     prompt = f"""
 You are SceneCraft AI, a professional cinematic analyst. Do not generate or invent new scenes. Your job is only to analyze the submitted input.
 
-Use the following principles where relevant, but do not name them explicitly:
-- Scene architecture (setup, trigger, tension, climax, resolution)
-- Genre conventions and how they impact global audience resonance
-- Cinematic grammar, pacing, and emotional beats
-- Editing rhythm, visual implication, and implied sound or tone
-- Psychological realism and character believability
-- Literary scene-building practices from real events and novels
-- Benchmarks like: Chekhov’s Gun, Setup and Payoff, The Iceberg Theory, Show Don't Tell, Visual Grammar, Rule of Three, Dramatic Irony, Save the Cat, Circular Storytelling, MacGuffin, Character Arc Symmetry, Button Line, Cognitive Misdirection, Symbolic Echoes, Rising Tension
+Use the following principles internally, but do not name them in the output:
+- Scene structure and emotional beats (setup, trigger, tension, climax, resolution)
+- Genre conventions and how they influence audience reaction
+- Cinematic grammar, editing patterns, and narrative flow
+- Realism, behavior psychology, and audience believability
+- Visual storytelling and sound (only if described or implied)
+- Literary scene-building inspired by novels and real-world narratives
 
-End with a section titled "Suggestions". Do not display any principle names. Speak like a professional story analyst offering objective insights.
+End with a section titled "Suggestions". Do not expose internal logic or cinematic terminology.
 
 Here is the scene:
-"""{request.scene}"""
+\"\"\"{request.scene}\"\"\"
 
 Language Note: {readability}
 """
@@ -88,8 +89,18 @@ Language Note: {readability}
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a professional cinematic analyst. Do not generate scenes. Analyze only. Use deep cinematic and narrative intelligence without showing technical structure. Show only humanlike observations and suggestions."},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": (
+                    "You are a professional cinematic analyst. Do not generate or imagine scenes. "
+                    "Evaluate only what's written. Use cinematic intelligence and realism benchmarks, "
+                    "but do not display those terms. End with humanlike suggestions only."
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
         ]
     }
 
