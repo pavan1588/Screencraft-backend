@@ -4,14 +4,10 @@ from pydantic import BaseModel
 import httpx
 import os
 import re
-import nltk
-from textstat import flesch_reading_ease
-
-nltk.download("punkt")
 
 app = FastAPI()
 
-# CORS settings
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -20,32 +16,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Scene input model
 class SceneRequest(BaseModel):
     scene: str
 
+# Scene validation logic
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
-    banned_keywords = [
-        "give", "provide", "generate", "write", "create", "compose",
-        "produce", "draft", "develop", "construct", "build", "make up", "invent"
-    ]
+    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
     text_lower = text.lower()
+
     if len(text.strip()) < 30:
         return False
     if text_lower.strip() in greetings:
         return False
-    if any(word in text_lower for word in banned_keywords):
+    if any(cmd in text_lower for cmd in command_words):
         return False
     return True
-
-def analyze_scene_readability(text: str) -> str:
-    score = flesch_reading_ease(text)
-    if score < 40:
-        return "The scene uses complex language that may reduce accessibility."
-    elif score < 70:
-        return "The language strikes a balance between sophistication and readability."
-    else:
-        return "The language is highly accessible, aiding flow and comprehension."
 
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
@@ -54,11 +41,7 @@ async def analyze_scene(request: SceneRequest):
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
     if not is_valid_scene(request.scene):
-        return {
-            "error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt for analysis. Scene generation is not supported."
-        }
-
-    readability = analyze_scene_readability(request.scene)
+        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt. Scene generation is not supported."}
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -68,39 +51,33 @@ async def analyze_scene(request: SceneRequest):
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst. Do not generate or invent new scenes. Your job is only to analyze the submitted input.
+You are SceneCraft AI, a professional cinematic analyst.
 
-Use the following principles internally, but do not name them in the output:
-- Scene structure and emotional beats (setup, trigger, tension, climax, resolution)
-- Genre conventions and how they influence audience reaction
-- Cinematic grammar, editing patterns, and narrative flow
-- Realism, behavior psychology, and audience believability
-- Visual storytelling and sound (only if described or implied)
-- Literary scene-building inspired by novels and real-world narratives
+Analyze the following scene using studio-grade cinematic evaluation. Avoid using any visible structural or category headers. Internally benchmark against:
 
-End with a section titled "Suggestions". Do not expose internal logic or cinematic terminology.
+- Scene structure and emotional beats
+- Genre conventions and audience trends
+- Character psychology and dramatic credibility
+- Visual, tonal, and sound elements (only if described or implied)
+- Influence of literary scene-building and real-world narratives
+- Nonlinear storytelling and modern realism
+- Why the scene resonates (or not) with a larger audience, within its genre
 
-Here is the scene:
-\"\"\"{request.scene}\"\"\"
+The output should:
+1. Read like a technically sound, creative studio-grade analysis
+2. Provide critical insight and validation
+3. Conclude with a section titled "Suggestions" offering actionable improvements (without sounding robotic)
 
-Language Note: {readability}
+Never generate new scenes. Do not name categories. Never quote or mention real films or authors.
+
+"""{request.scene}"""
 """
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional cinematic analyst. Do not generate or imagine scenes. "
-                    "Evaluate only what's written. Use cinematic intelligence and realism benchmarks, "
-                    "but do not display those terms. End with humanlike suggestions only."
-                )
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
+            {"role": "system", "content": "You are a professional cinematic scene analyst trained in studio-grade screenwriting benchmarks and audience psychology. Your response must sound natural, detailed, and constructive. Never generate or suggest scenes. Only return insightful analysis ending with 'Suggestions'."},
+            {"role": "user", "content": prompt}
         ]
     }
 
@@ -113,7 +90,12 @@ Language Note: {readability}
             )
             response.raise_for_status()
             result = response.json()
-            return {"analysis": result["choices"][0]["message"]["content"]}
+            content = result["choices"][0]["message"]["content"]
+
+            if "generate" in content.lower():
+                return {"error": "Scene generation is not supported."}
+            return {"analysis": content.strip()}
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
@@ -121,4 +103,4 @@ Language Note: {readability}
 
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is live!"}
+    return {"message": "SceneCraft backend is live."}
