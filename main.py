@@ -66,7 +66,7 @@ Analyze the following scene using studio-grade cinematic evaluation. Avoid using
 The output should:
 1. Read like a technically sound, creative studio-grade analysis
 2. Provide critical insight and validation
-3. Conclude with a section titled "Suggestions" offering actionable improvements (without sounding robotic)
+3. Conclude with a section titled \"Suggestions\" offering actionable improvements (without sounding robotic)
 
 Never generate new scenes. Do not name categories. Never quote or mention real films or authors.
 
@@ -76,7 +76,10 @@ Never generate new scenes. Do not name categories. Never quote or mention real f
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a professional cinematic scene analyst trained in studio-grade screenwriting benchmarks and audience psychology. Your response must sound natural, detailed, and constructive. Never generate or suggest scenes. Only return insightful analysis ending with 'Suggestions'."},
+            {
+                "role": "system",
+                "content": "You are a professional cinematic scene analyst trained in studio-grade screenwriting benchmarks and audience psychology. Your response must sound natural, detailed, and constructive. Never generate or suggest scenes. Only return insightful analysis ending with 'Suggestions'."
+            },
             {"role": "user", "content": prompt}
         ]
     }
