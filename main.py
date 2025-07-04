@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Request, Header
+from fastapi import FastAPI, HTTPException, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
@@ -19,16 +19,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Scene input model
 class SceneRequest(BaseModel):
     scene: str
 
-# Rate limit + Token management
 RATE_LIMIT = {}
 ROTATION_THRESHOLD = 50
 PASSWORD_USAGE_COUNT = 0
 STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
+ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
+PASSWORD_FILE = "scenecraft_password.json"
 
+# Scene validation logic
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     command_words = ["generate", "write a scene", "compose a script", "create a scene"]
@@ -53,8 +54,10 @@ def rotate_password():
     new_token = f"SCENECRAFT-{int(time.time())}"
     STORED_PASSWORD = new_token
     PASSWORD_USAGE_COUNT = 0
-    with open("scenecraft_password.json", "w") as f:
+    with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
+    # Optionally send email here (stubbed)
+    print("Password rotated to:", new_token)
 
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
@@ -139,7 +142,7 @@ Output should:
 - Help writers and studios understand scene potential and weaknesses
 - End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language
 
-Here is the scene for review. Assume all character names are proper nouns and should not be expanded or altered semantically:
+Assume all character names are proper nouns and should not be expanded or interpreted semantically:
 
 {data.scene}
 """
@@ -170,6 +173,23 @@ Here is the scene for review. Assume all character names are proper nouns and sh
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/password")
+def get_password(admin: str = Query(...)):
+    if admin != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Unauthorized admin access")
+    try:
+        with open(PASSWORD_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {"password": STORED_PASSWORD}
+
+@app.post("/password/reset")
+def reset_password(admin: str = Query(...)):
+    if admin != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Unauthorized admin access")
+    rotate_password()
+    return {"message": "Password manually rotated.", "new_password": STORED_PASSWORD}
 
 @app.get("/")
 def root():
