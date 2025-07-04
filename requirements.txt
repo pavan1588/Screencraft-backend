@@ -1,4 +1,5 @@
 fastapi
 uvicorn
-openai
-httpx==0.24.1
+httpx
+nltk
+textstat
