@@ -32,7 +32,15 @@ def is_valid_scene(text: str) -> bool:
         return False
     if any(cmd in text_lower for cmd in command_words):
         return False
-    return True
+
+    # Check if input resembles a scene or script with characters/dialogue/cinematic elements
+    has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    if has_dialogue or has_cinematic_cues:
+        return True
+
+    # Allow naturalistic prose-style movie scenes or descriptions
+    return True if len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]) else False
 
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
@@ -70,7 +78,8 @@ The output should:
 
 Never generate new scenes. Do not name categories. Never quote or mention real films or authors.
 
-"""{request.scene}"""
+Scene:
+{request.scene}
 """
 
     payload = {
