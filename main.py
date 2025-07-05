@@ -1,12 +1,9 @@
-from fastapi import FastAPI, HTTPException, Request, Header, Query
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import httpx
 import os
 import re
-import time
-import json
-from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
@@ -19,71 +16,39 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Input model
 class SceneRequest(BaseModel):
     scene: str
 
-RATE_LIMIT = {}
-ROTATION_THRESHOLD = 50
-PASSWORD_USAGE_COUNT = 0
-STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
-ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
-PASSWORD_FILE = "scenecraft_password.json"
-
-# Scene validation logic
+# Improved scene validator
 def is_valid_scene(text: str) -> bool:
-    greetings = ["hi", "hello", "hey", "good morning", "good evening"]
-    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
+    text = text.strip()
+    if len(text) < 20:
+        return False
+
     text_lower = text.lower()
-    if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
+    if text_lower in ["hi", "hello", "hey", "good morning", "good evening"]:
         return False
-    has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
-    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
 
-def rate_limiter(ip, window=60, limit=10):
-    now = time.time()
-    RATE_LIMIT.setdefault(ip, [])
-    RATE_LIMIT[ip] = [t for t in RATE_LIMIT[ip] if now - t < window]
-    if len(RATE_LIMIT[ip]) >= limit:
+    if any(cmd in text_lower for cmd in ["generate", "write", "compose", "create"]):
         return False
-    RATE_LIMIT[ip].append(now)
-    return True
 
-def rotate_password():
-    global STORED_PASSWORD, PASSWORD_USAGE_COUNT
-    new_token = f"SCENECRAFT-{int(time.time())}"
-    STORED_PASSWORD = new_token
-    PASSWORD_USAGE_COUNT = 0
-    with open(PASSWORD_FILE, "w") as f:
-        json.dump({"password": new_token}, f)
-    # Optionally send email here (stubbed)
-    print("Password rotated to:", new_token)
+    has_script_format = bool(re.search(r"^[A-Z]{2,}(?:\s*\(.*?\))?$", text, re.MULTILINE))
+    has_direction = bool(re.search(r"\b(INT\.|EXT\.|FADE TO|CUT TO|DISSOLVE TO)\b", text, re.IGNORECASE))
 
+    return has_script_format or has_direction or len(text.split()) > 20
+
+# Main analysis endpoint
 @app.post("/analyze")
-async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
-    global PASSWORD_USAGE_COUNT, STORED_PASSWORD
-
-    ip = request.client.host
-    if not rate_limiter(ip):
-        raise HTTPException(status_code=HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
-
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
-
-    token = authorization.split("Bearer ")[1]
-    if token != STORED_PASSWORD:
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid access token")
-
-    PASSWORD_USAGE_COUNT += 1
-    if PASSWORD_USAGE_COUNT >= ROTATION_THRESHOLD:
-        rotate_password()
-
-    if not is_valid_scene(data.scene):
-        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt."}
-
+async def analyze_scene(request: SceneRequest):
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
+
+    if not is_valid_scene(request.scene):
+        return {
+            "error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt. Scene generation is not supported."
+        }
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -92,59 +57,28 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
         "X-Title": "SceneCraft"
     }
 
+    # Analysis prompt using benchmarks (unchanged)
     prompt = f"""
 You are SceneCraft AI, a professional cinematic analyst.
 
-Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
+Evaluate the following scene/script input based on cinematic benchmarks. Your analysis must sound natural and intelligent without revealing internal terms or logic.
 
-Use the following benchmarks internally to guide your critique:
+Internally apply:
+- Scene structure and emotional beats (setup, trigger, tension, conflict, climax, resolution)
+- Cinematic grammar and pacing
+- Genre conventions and audience resonance
+- Character psychology and realism
+- Visual/sound/editing tone (only if implied)
+- Storytelling techniques: Chekhov’s Gun, Save the Cat, Iceberg Theory, etc.
+- Cinematic direction: shot-reverse-shot, cognitive editing, lighting tone
+- Voice and originality inspired by great filmmakers and novelists
+- Literary realism or experiential cues from real-life events
+- Call out lack of cinematic depth if applicable
 
-- Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
-- Cinematic grammar and pacing: coherence, continuity, spatial logic, transitions, cinematic rhythm
-- Genre effectiveness: whether the scene delivers the emotional and structural expectations of its genre, how it adapts to modern audience tastes
-- Audience reaction prediction: how different types of audiences (festivals, mainstream, OTT, global cinema lovers) may react to this scene based on past works and current trends
-- Realism and character psychology: is behavior authentic, emotionally truthful, rooted in believable motivation or therapy-style realism
-- Use of visuals and emotion: visual cues, camera, lighting, spatial emotion, editing tempo — but only if implied or described
-- Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
-- Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
-- Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
-- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
-- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
-- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
-- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
+Output must be human, unbiased, detailed, and end with one clearly marked section: "Suggestions".
 
-Additional storytelling principles to apply:
-- Chekhov’s Gun
-- Setup and Payoff
-- The Iceberg Theory (Hemingway)
-- Show, Don’t Tell
-- Dramatic Irony
-- Save the Cat
-- Circular Storytelling
-- The MacGuffin
-- Symmetry & Asymmetry in Character Arcs
-- The Button Line
-
-Additional cinematic/directing principles to apply:
-- Visual Grammar
-- Symbolic Echoes
-- The Rule of Three (visual/comic pacing)
-- Camera Framing & Composition
-- Blocking & Physical Distance
-- Lighting for Emotional Tone
-- Escalation (Scene Tension Curve)
-- Cognitive Misdirection (via editing)
-- Shot-Reverse-Shot for Conflict/Subtext
-- Sound Design as Narrative Tool
-
-Output should:
-- Be cohesive, evaluative, and technically sharp
-- Help writers and studios understand scene potential and weaknesses
-- End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language
-
-Assume all character names are proper nouns and should not be expanded or interpreted semantically:
-
-{data.scene}
+Scene:
+\"\"\"{request.scene}\"\"\"
 """
 
     payload = {
@@ -152,7 +86,7 @@ Assume all character names are proper nouns and should not be expanded or interp
         "messages": [
             {
                 "role": "system",
-                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis and only show one 'Suggestions' section at the end."
+                "content": "You are a highly experienced cinematic analyst. Do not quote scripts, do not generate new scenes. Always end with a natural 'Suggestions' section."
             },
             {"role": "user", "content": prompt}
         ]
@@ -168,29 +102,17 @@ Assume all character names are proper nouns and should not be expanded or interp
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
+
+            if "generate" in content.lower():
+                return {"error": "Scene generation is not supported."}
+
             return {"analysis": content.strip()}
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/password")
-def get_password(admin: str = Query(...)):
-    if admin != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Unauthorized admin access")
-    try:
-        with open(PASSWORD_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"password": STORED_PASSWORD}
-
-@app.post("/password/reset")
-def reset_password(admin: str = Query(...)):
-    if admin != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Unauthorized admin access")
-    rotate_password()
-    return {"message": "Password manually rotated.", "new_password": STORED_PASSWORD}
-
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is live."}
+    return {"message": "SceneCraft backend is live!"}
