@@ -1,3 +1,4 @@
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -16,11 +17,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Input model
 class SceneRequest(BaseModel):
     scene: str
 
-# Improved scene validator
+# Relaxed but secure scene validation logic
 def is_valid_scene(text: str) -> bool:
     text = text.strip()
     if len(text) < 20:
@@ -38,7 +38,6 @@ def is_valid_scene(text: str) -> bool:
 
     return has_script_format or has_direction or len(text.split()) > 20
 
-# Main analysis endpoint
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
     api_key = os.getenv("OPENROUTER_API_KEY")
@@ -46,9 +45,7 @@ async def analyze_scene(request: SceneRequest):
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
     if not is_valid_scene(request.scene):
-        return {
-            "error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt. Scene generation is not supported."
-        }
+        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt. Scene generation is not supported."}
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -57,28 +54,59 @@ async def analyze_scene(request: SceneRequest):
         "X-Title": "SceneCraft"
     }
 
-    # Analysis prompt using benchmarks (unchanged)
     prompt = f"""
 You are SceneCraft AI, a professional cinematic analyst.
 
-Evaluate the following scene/script input based on cinematic benchmarks. Your analysis must sound natural and intelligent without revealing internal terms or logic.
+Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
 
-Internally apply:
-- Scene structure and emotional beats (setup, trigger, tension, conflict, climax, resolution)
-- Cinematic grammar and pacing
-- Genre conventions and audience resonance
-- Character psychology and realism
-- Visual/sound/editing tone (only if implied)
-- Storytelling techniques: Chekhov’s Gun, Save the Cat, Iceberg Theory, etc.
-- Cinematic direction: shot-reverse-shot, cognitive editing, lighting tone
-- Voice and originality inspired by great filmmakers and novelists
-- Literary realism or experiential cues from real-life events
-- Call out lack of cinematic depth if applicable
+Use the following benchmarks internally to guide your critique:
 
-Output must be human, unbiased, detailed, and end with one clearly marked section: "Suggestions".
+- Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
+- Cinematic grammar and pacing: coherence, continuity, spatial logic, transitions, cinematic rhythm
+- Genre effectiveness: whether the scene delivers the emotional and structural expectations of its genre, how it adapts to modern audience tastes
+- Audience reaction prediction: how different types of audiences (festivals, mainstream, OTT, global cinema lovers) may react to this scene based on past works and current trends
+- Realism and character psychology: is behavior authentic, emotionally truthful, rooted in believable motivation or therapy-style realism
+- Use of visuals and emotion: visual cues, camera, lighting, spatial emotion, editing tempo — but only if implied or described
+- Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
+- Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
+- Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
+- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
+- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
+- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
+- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
 
-Scene:
-\"\"\"{request.scene}\"\"\"
+Additional storytelling principles to apply:
+- Chekhov’s Gun
+- Setup and Payoff
+- The Iceberg Theory (Hemingway)
+- Show, Don’t Tell
+- Dramatic Irony
+- Save the Cat
+- Circular Storytelling
+- The MacGuffin
+- Symmetry & Asymmetry in Character Arcs
+- The Button Line
+
+Additional cinematic/directing principles to apply:
+- Visual Grammar
+- Symbolic Echoes
+- The Rule of Three (visual/comic pacing)
+- Camera Framing & Composition
+- Blocking & Physical Distance
+- Lighting for Emotional Tone
+- Escalation (Scene Tension Curve)
+- Cognitive Misdirection (via editing)
+- Shot-Reverse-Shot for Conflict/Subtext
+- Sound Design as Narrative Tool
+
+Output should:
+- Be cohesive, evaluative, and technically sharp
+- Help writers and studios understand scene potential and weaknesses
+- End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language
+
+Here is the scene for review:
+
+{request.scene}
 """
 
     payload = {
@@ -86,7 +114,7 @@ Scene:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a highly experienced cinematic analyst. Do not quote scripts, do not generate new scenes. Always end with a natural 'Suggestions' section."
+                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis and only show one 'Suggestions' section at the end."
             },
             {"role": "user", "content": prompt}
         ]
@@ -105,7 +133,6 @@ Scene:
 
             if "generate" in content.lower():
                 return {"error": "Scene generation is not supported."}
-
             return {"analysis": content.strip()}
 
     except httpx.HTTPStatusError as e:
@@ -115,4 +142,4 @@ Scene:
 
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is live!"}
+    return {"message": "SceneCraft backend is live."}
