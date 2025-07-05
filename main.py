@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,32 +10,61 @@ app = FastAPI()
 # CORS setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Change to specific domain in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Scene input model
 class SceneRequest(BaseModel):
     scene: str
 
-# Relaxed but secure scene validation logic
+# Updated semantic validator for cinematic inputs
 def is_valid_scene(text: str) -> bool:
-    text = text.strip()
-    if len(text) < 20:
+    if not text or len(text.strip()) < 25:
         return False
 
     text_lower = text.lower()
-    if text_lower in ["hi", "hello", "hey", "good morning", "good evening"]:
+
+    # Reject casual, chatty, or AI-style prompts
+    trivial_phrases = [
+        "hi", "hello", "how are you", "what's up", "who are you", 
+        "tell me a story", "write a poem", "i love you", 
+        "give me", "suggest", "generate", "can you", "help me", "what is"
+    ]
+    if any(phrase in text_lower for phrase in trivial_phrases):
         return False
 
-    if any(cmd in text_lower for cmd in ["generate", "write", "compose", "create"]):
-        return False
+    # Allow if cinematic keywords exist
+    cinematic_keywords = [
+        "dialogue", "character", "scene", "script", "monologue", 
+        "screenplay", "action", "emotion", "setting", "voiceover", 
+        "location", "actor", "director", "cut", "angle", "camera", 
+        "reaction", "beat", "conflict", "line of dialogue"
+    ]
+    if any(word in text_lower for word in cinematic_keywords):
+        return True
 
-    has_script_format = bool(re.search(r"^[A-Z]{2,}(?:\s*\(.*?\))?$", text, re.MULTILINE))
-    has_direction = bool(re.search(r"\b(INT\.|EXT\.|FADE TO|CUT TO|DISSOLVE TO)\b", text, re.IGNORECASE))
+    # Allow if screenplay markers exist
+    if re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:|DISSOLVE TO:)\b", text, re.IGNORECASE):
+        return True
 
-    return has_script_format or has_direction or len(text.split()) > 20
+    # Check for uppercase speaker lines followed by dialogue
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for i in range(len(lines) - 1):
+        if lines[i].isupper() and len(lines[i]) <= 30 and len(lines[i + 1]) > 1:
+            return True
+
+    # Quoted dialogue
+    if re.findall(r'[“”"\'\'].*?[“”"\'\']', text):
+        return True
+
+    # Fallback: if it looks structured and filmic
+    if len(lines) >= 3:
+        return True
+
+    return False
 
 @app.post("/analyze")
 async def analyze_scene(request: SceneRequest):
@@ -45,7 +73,9 @@ async def analyze_scene(request: SceneRequest):
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
     if not is_valid_scene(request.scene):
-        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt. Scene generation is not supported."}
+        return {
+            "error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt. Scene generation or generic input is not supported."
+        }
 
     headers = {
         "Authorization": f"Bearer {api_key}",
