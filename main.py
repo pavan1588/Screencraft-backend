@@ -1,4 +1,3 @@
-
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -11,6 +10,7 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,6 +29,7 @@ STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
 
+# Scene validation logic
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     command_words = ["generate", "write a scene", "compose a script", "create a scene"]
@@ -36,8 +37,8 @@ def is_valid_scene(text: str) -> bool:
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    cinematic_keywords = ["character", "scene", "dialogue", "script", "monologue", "film"]
-    return (has_dialogue or (len(text.split()) > 20 and any(p in text_lower for p in cinematic_keywords)))
+    has_cinematic_keywords = any(word in text_lower for word in ["character", "scene", "dialogue", "script", "monologue", "film"])
+    return True if (has_dialogue or has_cinematic_keywords or len(text.split()) > 20) else False
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -66,11 +67,11 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
         raise HTTPException(status_code=HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
 
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+        raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
 
     token = authorization.split("Bearer ")[1]
     if token != STORED_PASSWORD:
-        raise HTTPException(status_code=403, detail="Forbidden")
+        raise HTTPException(status_code=403, detail="Forbidden: Invalid access token")
 
     PASSWORD_USAGE_COUNT += 1
     if PASSWORD_USAGE_COUNT >= ROTATION_THRESHOLD:
@@ -91,62 +92,44 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst.
+You are SceneCraft AI, a professional cinematic analyst for studio scripts.
 
-Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmark categories.
+You are reviewing a scene or excerpt submitted by a writer. Your role is to provide a natural, fluent, insightful human-style analysis of the excerpt based on internal cinematic benchmarks. DO NOT expose or mention any benchmark category headings (like 'Scene Structure', 'Cinematic Grammar', etc.). Just embed them naturally in the prose of your analysis.
 
-Use the following benchmarks internally to guide your critique:
+Write like a skilled creative executive or script doctor. Avoid robotic structure. Sound experienced, constructive, and thoughtful. Use both beginner-friendly and advanced cinematic language sparingly and meaningfully.
 
-- Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
-- Cinematic grammar and pacing: coherence, continuity, spatial logic, transitions, cinematic rhythm
-- Genre effectiveness: whether the scene delivers the emotional and structural expectations of its genre, how it adapts to modern audience tastes
-- Audience reaction prediction: how different types of audiences (festivals, mainstream, OTT, global cinema lovers) may react to this scene based on past works and current trends
-- Realism and character psychology: is behavior authentic, emotionally truthful, rooted in believable motivation or therapy-style realism
-- Use of visuals and emotion: visual cues, camera, lighting, spatial emotion, editing tempo — but only if implied or described
-- Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
-- Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
-- Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
-- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
-- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
-- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
-- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
+Use the following cinematic benchmarks INTERNALLY (do not list them in output):
+- Scene structure and emotional beats
+- Cinematic grammar and pacing
+- Genre effectiveness
+- Audience reaction prediction
+- Realism and character psychology
+- Visual cues, camera, lighting, spatial emotion
+- Sound, tone, BGM if implied
+- Editing, tone, symbolism, rhythm
+- Scene-building from literary and real-life influences
+- Voice and originality
+- Structure resonance
 
-Additional storytelling principles to apply:
-- Chekhov’s Gun
-- Setup and Payoff
-- The Iceberg Theory (Hemingway)
-- Show, Don’t Tell
-- Dramatic Irony
-- Save the Cat
-- Circular Storytelling
-- The MacGuffin
-- Symmetry & Asymmetry in Character Arcs
-- The Button Line
+Also apply these storytelling and directing principles INTERNALLY:
+- Chekhov’s Gun, Setup & Payoff, Iceberg Theory, Show Don’t Tell, Dramatic Irony
+- Save the Cat, Circular Storytelling, The MacGuffin, Symbolic Echoes, Camera Angles
+- Blocking, Sound Design, Lighting for Tone, Shot-Reverse-Shot, Escalation
 
-Additional cinematic/directing principles to apply:
-- Visual Grammar
-- Symbolic Echoes
-- The Rule of Three (visual/comic pacing)
-- Camera Framing & Composition
-- Blocking & Physical Distance
-- Lighting for Emotional Tone
-- Escalation (Scene Tension Curve)
-- Cognitive Misdirection (via editing)
-- Shot-Reverse-Shot for Conflict/Subtext
-- Sound Design as Narrative Tool
+Now analyze this scene:
 
-Output should:
-- Be cohesive, technically sharp, visually and narratively insightful
-- Adapt tone and suggestions for both beginners and professionals
-- End with a clearly marked section titled "Suggestions" with helpful, creative, technically sound tips and examples
+{data.scene}
 
-Scene Input:
-""" + data.scene
+Write your analysis below in fluent paragraph format. Do NOT use benchmark labels or headings. End with one section clearly titled only: Suggestions.
+"""
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a professional cinematic analyst. Never generate content. Only analyze and critique scenes with technical intelligence and realism."},
+            {
+                "role": "system",
+                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis and only show one 'Suggestions' section at the end. Do not expose benchmarks."
+            },
             {"role": "user", "content": prompt}
         ]
     }
