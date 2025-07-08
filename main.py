@@ -37,8 +37,8 @@ def is_valid_scene(text: str) -> bool:
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_keywords = any(word in text_lower for word in ["character", "scene", "dialogue", "script", "monologue", "film"])
-    return True if (has_dialogue or has_cinematic_keywords or len(text.split()) > 20) else False
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -92,35 +92,52 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst for studio scripts.
+You are SceneCraft AI, a professional cinematic analyst.
 
-You are reviewing a scene or excerpt submitted by a writer. Your role is to provide a natural, fluent, insightful human-style analysis of the excerpt based on internal cinematic benchmarks. DO NOT expose or mention any benchmark category headings (like 'Scene Structure', 'Cinematic Grammar', etc.). Just embed them naturally in the prose of your analysis.
+Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
 
-Write like a skilled creative executive or script doctor. Avoid robotic structure. Sound experienced, constructive, and thoughtful. Use both beginner-friendly and advanced cinematic language sparingly and meaningfully.
+Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', or 'Cinematic Grammar'. Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. End with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising.
 
-Use the following cinematic benchmarks INTERNALLY (do not list them in output):
-- Scene structure and emotional beats
-- Cinematic grammar and pacing
-- Genre effectiveness
-- Audience reaction prediction
-- Realism and character psychology
-- Visual cues, camera, lighting, spatial emotion
-- Sound, tone, BGM if implied
-- Editing, tone, symbolism, rhythm
-- Scene-building from literary and real-life influences
-- Voice and originality
-- Structure resonance
+Use the following benchmarks internally to guide your critique:
+- Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
+- Cinematic grammar and pacing: coherence, continuity, spatial logic, transitions, cinematic rhythm
+- Genre effectiveness: whether the scene delivers the emotional and structural expectations of its genre, how it adapts to modern audience tastes
+- Audience reaction prediction: how different types of audiences (festivals, mainstream, OTT, global cinema lovers) may react to this scene based on past works and current trends
+- Realism and character psychology: is behavior authentic, emotionally truthful, rooted in believable motivation or therapy-style realism
+- Use of visuals and emotion: visual cues, camera, lighting, spatial emotion, editing tempo — but only if implied or described
+- Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
+- Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
+- Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
+- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
+- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
+- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
+- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
 
-Also apply these storytelling and directing principles INTERNALLY:
-- Chekhov’s Gun, Setup & Payoff, Iceberg Theory, Show Don’t Tell, Dramatic Irony
-- Save the Cat, Circular Storytelling, The MacGuffin, Symbolic Echoes, Camera Angles
-- Blocking, Sound Design, Lighting for Tone, Shot-Reverse-Shot, Escalation
+Additional storytelling principles to apply:
+- Chekhov’s Gun
+- Setup and Payoff
+- The Iceberg Theory (Hemingway)
+- Show, Don’t Tell
+- Dramatic Irony
+- Save the Cat
+- Circular Storytelling
+- The MacGuffin
+- Symmetry & Asymmetry in Character Arcs
+- The Button Line
 
-Now analyze this scene:
+Additional cinematic/directing principles to apply:
+- Visual Grammar
+- Symbolic Echoes
+- The Rule of Three (visual/comic pacing)
+- Camera Framing & Composition
+- Blocking & Physical Distance
+- Lighting for Emotional Tone
+- Escalation (Scene Tension Curve)
+- Cognitive Misdirection (via editing)
+- Shot-Reverse-Shot for Conflict/Subtext
+- Sound Design as Narrative Tool
 
 {data.scene}
-
-Write your analysis below in fluent paragraph format. Do NOT use benchmark labels or headings. End with one section clearly titled only: Suggestions.
 """
 
     payload = {
@@ -128,7 +145,13 @@ Write your analysis below in fluent paragraph format. Do NOT use benchmark label
         "messages": [
             {
                 "role": "system",
-                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis and only show one 'Suggestions' section at the end. Do not expose benchmarks."
+                "content": (
+                    "You are a professional cinematic scene analyst with expertise in realism, audience psychology, screenwriting, directing, and literary storytelling. "
+                    "Never generate new scenes. Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', 'Cinematic Grammar'. "
+                    "Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. "
+                    "End the analysis with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. "
+                    "Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising."
+                )
             },
             {"role": "user", "content": prompt}
         ]
