@@ -10,7 +10,7 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
-# CORS config
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,11 +19,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Input schema
 class SceneRequest(BaseModel):
     scene: str
 
-# In-memory rate limit tracking
 RATE_LIMIT = {}
 ROTATION_THRESHOLD = 50
 PASSWORD_USAGE_COUNT = 0
@@ -31,25 +29,19 @@ STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
 
-# Input validation function
+# Scene validation logic
 def is_valid_scene(text: str) -> bool:
+    greetings = ["hi", "hello", "hey", "good morning", "good evening"]
+    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
     text_lower = text.lower()
-    if len(text.strip()) < 30:
+    if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
-    if any(greet in text_lower for greet in ["hi", "hello", "hey", "good morning", "good evening"]):
-        return False
-    if any(cmd in text_lower for cmd in ["generate", "write a scene", "create a script", "compose a dialogue"]):
-        return False
-
-    cinematic_signals = [
-        r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b",
-        r"[A-Z][a-z]+\s*\(.*?\)",
-        r"[A-Z]{2,}:", 
-        r"\[.*?\]", 
-        r"\(.*?\)",
-        r"\bscene\b|\bdialogue\b|\bmonologue\b|\bscreenplay\b|\bscript\b|\bfilm\b|\bcharacter\b"
-    ]
-    return any(re.search(pattern, text, re.IGNORECASE) for pattern in cinematic_signals)
+    has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    return True if (
+        has_dialogue or has_cinematic_cues or
+        (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))
+    ) else False
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -67,6 +59,7 @@ def rotate_password():
     PASSWORD_USAGE_COUNT = 0
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
+    print("Password rotated to:", new_token)
 
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
@@ -78,6 +71,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
 
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
+
     token = authorization.split("Bearer ")[1]
     if token != STORED_PASSWORD:
         raise HTTPException(status_code=403, detail="Forbidden: Invalid access token")
@@ -87,7 +81,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
+        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -168,18 +162,22 @@ Assume all character names are proper nouns and should not be expanded or interp
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
             generation_indicators = [
-    "here's a scene", "here is a scene", "i've written", "scene generated",
-    "let's create", "let me write", "generated script", "suggested dialogue",
-    "please see this scene", "a new scene", "i came up with"
-]
-if any(g in content.lower() for g in generation_indicators):
-    return {"error": "Scene generation is not supported. The tool only analyzes cinematic input."}
+                "here's a scene", "here is a scene", "i've written", "scene generated",
+                "let's create", "let me write", "generated script", "suggested dialogue",
+                "please see this scene", "a new scene", "i came up with"
+            ]
+            if any(g in content.lower() for g in generation_indicators):
+                return {"error": "Scene generation is not supported. The tool only analyzes cinematic input."}
 
             return {"analysis": content.strip()}
 
