@@ -197,7 +197,6 @@ Assume all character names are pre-existing and do not invent any. If text is in
     return {
         "error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."
     }
-
 return {"analysis": content.strip()}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
