@@ -10,7 +10,6 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,7 +28,7 @@ STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
 
-# Scene validation logic
+
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     command_words = ["generate", "write a scene", "compose a script", "create a scene"]
@@ -37,8 +36,9 @@ def is_valid_scene(text: str) -> bool:
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    has_cinematic_cues = re.search(r"\b(INT\\.|EXT\\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
     return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
+
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -49,6 +49,7 @@ def rate_limiter(ip, window=60, limit=10):
     RATE_LIMIT[ip].append(now)
     return True
 
+
 def rotate_password():
     global STORED_PASSWORD, PASSWORD_USAGE_COUNT
     new_token = f"SCENECRAFT-{int(time.time())}"
@@ -57,6 +58,7 @@ def rotate_password():
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
     print("Password rotated to:", new_token)
+
 
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
@@ -94,9 +96,9 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     prompt = f"""
 You are SceneCraft AI, a professional cinematic analyst.
 
-Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
+Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks. Do not use or name categories like 'Scene Structure' or 'Cinematic Grammar'—keep the tone human, fluent, and natural.
 
-Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', or 'Cinematic Grammar'. Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. End with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising.
+Quietly assess the genre of the scene and call it out naturally in your response.
 
 Use the following benchmarks internally to guide your critique:
 - Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
@@ -108,10 +110,10 @@ Use the following benchmarks internally to guide your critique:
 - Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
 - Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
 - Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
-- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
-- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
-- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
-- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
+- Voice and originality: does the writing show a unique voice or perspective?
+- Scene-building from literary and real-event influences
+- Structure resonance
+- Avoid flattery. Never generate scenes.
 
 Additional storytelling principles to apply:
 - Chekhov’s Gun
@@ -137,6 +139,12 @@ Additional cinematic/directing principles to apply:
 - Shot-Reverse-Shot for Conflict/Subtext
 - Sound Design as Narrative Tool
 
+Output should:
+- Be cohesive, structured, and technically sharp
+- Naturally highlight strengths and weaknesses
+- Offer improvement cues and cinematic insights, using simple examples instead of naming cinematic principles
+- End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain, natural language
+
 {data.scene}
 """
 
@@ -145,13 +153,7 @@ Additional cinematic/directing principles to apply:
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "You are a professional cinematic scene analyst with expertise in realism, audience psychology, screenwriting, directing, and literary storytelling. "
-                    "Never generate new scenes. Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', 'Cinematic Grammar'. "
-                    "Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. "
-                    "End the analysis with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. "
-                    "Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising."
-                )
+                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis and only show one 'Suggestions' section at the end."
             },
             {"role": "user", "content": prompt}
         ]
@@ -173,6 +175,7 @@ Additional cinematic/directing principles to apply:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/password")
 def get_password(admin: str = Query(...)):
     if admin != ADMIN_PASSWORD:
@@ -183,12 +186,14 @@ def get_password(admin: str = Query(...)):
     except:
         return {"password": STORED_PASSWORD}
 
+
 @app.post("/password/reset")
 def reset_password(admin: str = Query(...)):
     if admin != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Unauthorized admin access")
     rotate_password()
     return {"message": "Password manually rotated.", "new_password": STORED_PASSWORD}
+
 
 @app.get("/")
 def root():
