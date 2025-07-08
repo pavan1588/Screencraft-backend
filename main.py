@@ -29,7 +29,6 @@ STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
 
-# Scene validation logic
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     command_words = ["generate", "write a scene", "compose a script", "create a scene"]
@@ -37,10 +36,9 @@ def is_valid_scene(text: str) -> bool:
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_keywords = any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"])
-    return has_dialogue or has_keywords or len(text.split()) > 20
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
 
-# Basic in-memory rate limiter
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
     RATE_LIMIT.setdefault(ip, [])
@@ -50,7 +48,6 @@ def rate_limiter(ip, window=60, limit=10):
     RATE_LIMIT[ip].append(now)
     return True
 
-# Password rotation
 def rotate_password():
     global STORED_PASSWORD, PASSWORD_USAGE_COUNT
     new_token = f"SCENECRAFT-{int(time.time())}"
@@ -60,17 +57,22 @@ def rotate_password():
         json.dump({"password": new_token}, f)
     print("Password rotated to:", new_token)
 
-# Strip benchmark terms if AI leaks them
 def sanitize_response(text: str) -> str:
     forbidden_terms = [
-        r"Chekhov['’]s Gun", r"Save the Cat", r"The Iceberg Theory", r"The MacGuffin",
-        r"Shot-Reverse-Shot", r"Show, Don’t Tell", r"Setup and Payoff",
-        r"Symbolic Echoes", r"Cinematic grammar", r"Visual Grammar",
-        r"The Rule of Three", r"Escalation", r"Dramatic Irony", r"Button Line"
+        "Chekhov’s Gun", "Save the Cat", "The Iceberg Theory", "The MacGuffin",
+        "Shot-Reverse-Shot", "Show, Don’t Tell", "Setup and Payoff", "Dramatic Irony",
+        "Symbolic Echoes", "Cinematic grammar", "Visual Grammar", "Escalation",
+        "The Rule of Three", "The Button Line", "Circular Storytelling",
+        "Sound Design as Narrative Tool"
     ]
     for term in forbidden_terms:
-        text = re.sub(term, "[cinematic technique]", text, flags=re.IGNORECASE)
-    return text
+        text = re.sub(rf"{term},\\s*", "", text, flags=re.IGNORECASE)
+        text = re.sub(rf",?\\s*{term}", "", text, flags=re.IGNORECASE)
+    text = re.sub(r",\\s*,", ", ", text)
+    text = re.sub(r"\(\\s*,", "(", text)
+    text = re.sub(r",\\s*\)", ")", text)
+    text = re.sub(r"\s{2,}", " ", text)
+    return text.strip()
 
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
@@ -153,7 +155,7 @@ Additional cinematic/directing principles to apply:
 Output should:
 - Be cohesive, evaluative, and technically sharp
 - Help writers and studios understand scene potential and weaknesses
-- End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language
+- End with a clearly marked section titled \"Suggestions\" that contains constructive improvement ideas in plain natural language
 
 Assume all character names are proper nouns and should not be expanded or interpreted semantically:
 
@@ -181,17 +183,8 @@ Assume all character names are proper nouns and should not be expanded or interp
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-
-            generation_indicators = [
-                "here's a scene", "here is a scene", "i've written", "scene generated",
-                "let's create", "let me write", "generated script", "suggested dialogue",
-                "please see this scene", "a new scene", "i came up with"
-            ]
-            if any(g in content.lower() for g in generation_indicators):
-                return {"error": "Scene generation is not supported. The tool only analyzes cinematic input."}
-
-            return {"analysis": sanitize_response(content.strip())}
-
+            sanitized = sanitize_response(content)
+            return {"analysis": sanitized.strip()}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
