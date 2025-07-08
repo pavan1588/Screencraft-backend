@@ -118,7 +118,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst.
+You are SceneCraft AI. NEVER generate characters, scenes, monologues, or dialogues. ONLY analyze what is provided. If the input does not clearly contain a cinematic scene, monologue, dialogue, or script excerpt, respond with: 'The input does not appear to be a cinematic scene or script excerpt. Please provide a valid scene.' You are not allowed to invent characters or create content.
 
 Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
 
@@ -167,7 +167,7 @@ Output should:
 - Help writers and studios understand scene potential and weaknesses
 - End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language
 
-Assume all character names are proper nouns and should not be expanded or interpreted semantically:
+Assume all character names are pre-existing and do not invent any. If text is invalid, respond with the validation error and nothing more:
 
 {data.scene}
 """
@@ -193,6 +193,8 @@ Assume all character names are proper nouns and should not be expanded or interp
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
+            if "CHARACTER:" in content.upper() or "INT." in content[:20] or "EXT." in content[:20]:
+    return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
             return {"analysis": content.strip()}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
