@@ -10,7 +10,6 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
-# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -29,7 +28,6 @@ STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
 
-# Scene validation logic
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     command_words = ["generate", "write a scene", "compose a script", "create a scene"]
@@ -136,14 +134,15 @@ Additional cinematic/directing principles to apply:
 - Shot-Reverse-Shot for Conflict/Subtext
 - Sound Design as Narrative Tool
 
-Output must:
-- Read like a natural human analysis (no subheadings or internal benchmark names)
-- Be structured and fluent (not cluttered)
-- Use occasional technical terms where helpful, but always explain them simply when needed
-- Contain only one clearly marked section at the end titled "Suggestions" with a mix of beginner-friendly tips and studio-level insights
-- Never generate or suggest new scenes
+Output should:
+- Be cohesive, evaluative, and technically sharp
+- Help writers and studios understand scene potential and weaknesses
+- End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language. These suggestions should include:
+  - Clear examples (e.g., "Consider showing internal tension via camera distance as seen in many psychological dramas")
+  - Both beginner-friendly tips and high-level technical insights (e.g., "The climax lacks a 'button line'—a final emotional beat that resonates with the theme")
+  - Avoid mechanical terms in tone. Keep the voice cinematic and human.
 
-Here is the scene for review:
+Assume all character names are proper nouns and should not be expanded or interpreted semantically:
 
 {data.scene}
 """
@@ -153,7 +152,7 @@ Here is the scene for review:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis only. Avoid headings. Include one clear 'Suggestions' section at the end with simple and technical cues."
+                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis and only show one 'Suggestions' section at the end."
             },
             {"role": "user", "content": prompt}
         ]
