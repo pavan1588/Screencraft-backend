@@ -31,39 +31,14 @@ PASSWORD_FILE = "scenecraft_password.json"
 
 # Scene validation logic
 def is_valid_scene(text: str) -> bool:
-    """
-    Returns True if the input text resembles a scene, dialogue, monologue,
-    or script excerpt using broader semantic and structural cues.
-    """
-    text_lower = text.lower()
-    if len(text.strip()) < 30:
-        return False
-
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
-    if any(text_lower.strip().startswith(greet) for greet in greetings):
+    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
+    text_lower = text.lower()
+    if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
-
-    banned_phrases = ["generate", "write a", "create a", "compose a", "can you", "give me a scene"]
-    if any(phrase in text_lower for phrase in banned_phrases):
-        return False
-
-    keywords = ["dialogue", "monologue", "script", "scene", "character", "beats", "screenplay", "film"]
-    has_keywords = any(k in text_lower for k in keywords)
-
-    # Flexible structural hints
-    has_capitalized_lines = len(re.findall(r"^[A-Z][A-Z ]{2,}.*$", text, re.MULTILINE)) >= 1
-    has_colon_dialogue = len(re.findall(r"^[A-Za-z ]+:(?!//)", text, re.MULTILINE)) >= 1
-    has_parentheticals = len(re.findall(r"\\(.*?\\)", text)) >= 1
-
-    heuristics_score = sum([
-        has_keywords,
-        has_capitalized_lines,
-        has_colon_dialogue,
-        has_parentheticals,
-        len(text.split()) > 30
-    ])
-
-    return heuristics_score >= 2
+    has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -81,7 +56,6 @@ def rotate_password():
     PASSWORD_USAGE_COUNT = 0
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
-    # Optionally send email here (stubbed)
     print("Password rotated to:", new_token)
 
 @app.post("/analyze")
@@ -118,57 +92,13 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     }
 
     prompt = f"""
-You are SceneCraft AI. NEVER generate characters, scenes, monologues, or dialogues. ONLY analyze what is provided. If the input does not clearly contain a cinematic scene, monologue, dialogue, or script excerpt, respond with: 'The input does not appear to be a cinematic scene or script excerpt. Please provide a valid scene.' You are not allowed to invent characters or create content.
+You are SceneCraft AI. NEVER generate characters, scenes, monologues, or dialogues.
+ONLY analyze what is provided. If the input does not clearly contain a cinematic scene,
+monologue, dialogue, or script excerpt, respond with:
+'The input does not appear to be a cinematic scene or script excerpt. Please provide a valid scene.'
+You are not allowed to invent characters or create content.
 
-Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
-
-Use the following benchmarks internally to guide your critique:
-
-- Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
-- Cinematic grammar and pacing: coherence, continuity, spatial logic, transitions, cinematic rhythm
-- Genre effectiveness: whether the scene delivers the emotional and structural expectations of its genre, how it adapts to modern audience tastes
-- Audience reaction prediction: how different types of audiences (festivals, mainstream, OTT, global cinema lovers) may react to this scene based on past works and current trends
-- Realism and character psychology: is behavior authentic, emotionally truthful, rooted in believable motivation or therapy-style realism
-- Use of visuals and emotion: visual cues, camera, lighting, spatial emotion, editing tempo — but only if implied or described
-- Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
-- Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
-- Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
-- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
-- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
-- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
-- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
-
-Additional storytelling principles to apply:
-- Chekhov’s Gun
-- Setup and Payoff
-- The Iceberg Theory (Hemingway)
-- Show, Don’t Tell
-- Dramatic Irony
-- Save the Cat
-- Circular Storytelling
-- The MacGuffin
-- Symmetry & Asymmetry in Character Arcs
-- The Button Line
-
-Additional cinematic/directing principles to apply:
-- Visual Grammar
-- Symbolic Echoes
-- The Rule of Three (visual/comic pacing)
-- Camera Framing & Composition
-- Blocking & Physical Distance
-- Lighting for Emotional Tone
-- Escalation (Scene Tension Curve)
-- Cognitive Misdirection (via editing)
-- Shot-Reverse-Shot for Conflict/Subtext
-- Sound Design as Narrative Tool
-
-Output should:
-- Be cohesive, evaluative, and technically sharp
-- Help writers and studios understand scene potential and weaknesses
-- End with a clearly marked section titled "Suggestions" that contains constructive improvement ideas in plain natural language
-
-Assume all character names are pre-existing and do not invent any. If text is invalid, respond with the validation error and nothing more:
-
+Assume all character names are pre-existing and should not be invented:
 {data.scene}
 """
 
@@ -183,7 +113,7 @@ Assume all character names are pre-existing and do not invent any. If text is in
         ]
     }
 
-       try:
+    try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -194,21 +124,12 @@ Assume all character names are pre-existing and do not invent any. If text is in
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
-            # 🚫 BLOCK if model starts generating a scene
-            if "CHARACTER:" in content.upper() or "INT." in content[:20] or "EXT." in content[:20]:
+            if "CHARACTER:" in content.upper() or content.strip().startswith("INT.") or content.strip().startswith("EXT."):
                 return {
                     "error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."
                 }
 
             return {"analysis": content.strip()}
-
-    except httpx.HTTPStatusError as e:
-        raise HTTPException(
-            status_code=e.response.status_code,
-            detail=f"OpenRouter API error: {e.response.text}"
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
