@@ -37,7 +37,7 @@ def is_valid_scene(text: str) -> bool:
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\\.|EXT\\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
     return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
 
 def rate_limiter(ip, window=60, limit=10):
@@ -57,17 +57,6 @@ def rotate_password():
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
     print("Password rotated to:", new_token)
-
-def sanitize_response(text: str) -> str:
-    cinematic_terms = [
-        "Chekhov’s Gun", "Setup and Payoff", "The Iceberg Theory", "Show, Don’t Tell", "Dramatic Irony",
-        "Save the Cat", "Circular Storytelling", "The MacGuffin", "Symmetry & Asymmetry in Character Arcs", "The Button Line",
-        "Visual Grammar", "Symbolic Echoes", "The Rule of Three", "Camera Framing & Composition", "Blocking & Physical Distance",
-        "Lighting for Emotional Tone", "Escalation", "Cognitive Misdirection", "Shot-Reverse-Shot", "Sound Design as Narrative Tool"
-    ]
-    for term in cinematic_terms:
-        text = text.replace(term, "")
-    return text.strip()
 
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
@@ -89,7 +78,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt."}
+        return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -105,7 +94,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     prompt = f"""
 You are SceneCraft AI, a professional cinematic analyst.
 
-This analysis will be read by both emerging writers learning structure and professionals from film, OTT, and advertising. Make it cinematic, readable, instructive, and grounded in practice — not abstract theory.
+Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
 
 Use the following benchmarks internally to guide your critique:
 
@@ -123,6 +112,39 @@ Use the following benchmarks internally to guide your critique:
 - Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
 - Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
 
+Additional storytelling principles to apply:
+- Chekhov’s Gun
+- Setup and Payoff
+- The Iceberg Theory (Hemingway)
+- Show, Don’t Tell
+- Dramatic Irony
+- Save the Cat
+- Circular Storytelling
+- The MacGuffin
+- Symmetry & Asymmetry in Character Arcs
+- The Button Line
+
+Additional cinematic/directing principles to apply:
+- Visual Grammar
+- Symbolic Echoes
+- The Rule of Three (visual/comic pacing)
+- Camera Framing & Composition
+- Blocking & Physical Distance
+- Lighting for Emotional Tone
+- Escalation (Scene Tension Curve)
+- Cognitive Misdirection (via editing)
+- Shot-Reverse-Shot for Conflict/Subtext
+- Sound Design as Narrative Tool
+
+Output must:
+- Read like a natural human analysis (no subheadings or internal benchmark names)
+- Be structured and fluent (not cluttered)
+- Use occasional technical terms where helpful, but always explain them simply when needed
+- Contain only one clearly marked section at the end titled "Suggestions" with a mix of beginner-friendly tips and studio-level insights
+- Never generate or suggest new scenes
+
+Here is the scene for review:
+
 {data.scene}
 """
 
@@ -131,11 +153,7 @@ Use the following benchmarks internally to guide your critique:
         "messages": [
             {
                 "role": "system",
-                "content": (
-                    "You are a professional cinematic scene analyst. Never generate scenes. Provide deep, structured analysis tailored for both beginners and seasoned screenwriters. "
-                    "Make insights accessible and instructive — briefly explain technical terms the first time they're mentioned. "
-                    "Your tone should be grounded, human, and cinematic. Avoid jargon-heavy language unless necessary. Always include just one clearly labeled 'Suggestions' section at the end."
-                )
+                "content": "You are a professional cinematic scene analyst with expertise in realism, audience psychology, literary storytelling, and film production. Never generate new scenes. Provide deep analysis only. Avoid headings. Include one clear 'Suggestions' section at the end with simple and technical cues."
             },
             {"role": "user", "content": prompt}
         ]
@@ -151,8 +169,7 @@ Use the following benchmarks internally to guide your critique:
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            return {"analysis": sanitize_response(content)}
-
+            return {"analysis": content.strip()}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
