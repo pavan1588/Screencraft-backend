@@ -173,8 +173,13 @@ Assume all character names are proper nouns and should not be expanded or interp
             result = response.json()
             content = result["choices"][0]["message"]["content"]
 
-            if "INT." in content or "EXT." in content or re.search(r"[A-Z]{2,}:", content):
-                return {"error": "Scene generation is not supported. Only analysis of valid cinematic input is allowed."}
+            generation_indicators = [
+    "here's a scene", "here is a scene", "i've written", "scene generated",
+    "let's create", "let me write", "generated script", "suggested dialogue",
+    "please see this scene", "a new scene", "i came up with"
+]
+if any(g in content.lower() for g in generation_indicators):
+    return {"error": "Scene generation is not supported. The tool only analyzes cinematic input."}
 
             return {"analysis": content.strip()}
 
