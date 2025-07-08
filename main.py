@@ -31,14 +31,39 @@ PASSWORD_FILE = "scenecraft_password.json"
 
 # Scene validation logic
 def is_valid_scene(text: str) -> bool:
-    greetings = ["hi", "hello", "hey", "good morning", "good evening"]
-    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
+    """
+    Returns True if the input text resembles a scene, dialogue, monologue,
+    or script excerpt using broader semantic and structural cues.
+    """
     text_lower = text.lower()
-    if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
+    if len(text.strip()) < 30:
         return False
-    has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
-    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
+
+    greetings = ["hi", "hello", "hey", "good morning", "good evening"]
+    if any(text_lower.strip().startswith(greet) for greet in greetings):
+        return False
+
+    banned_phrases = ["generate", "write a", "create a", "compose a", "can you", "give me a scene"]
+    if any(phrase in text_lower for phrase in banned_phrases):
+        return False
+
+    keywords = ["dialogue", "monologue", "script", "scene", "character", "beats", "screenplay", "film"]
+    has_keywords = any(k in text_lower for k in keywords)
+
+    # Flexible structural hints
+    has_capitalized_lines = len(re.findall(r"^[A-Z][A-Z ]{2,}.*$", text, re.MULTILINE)) >= 1
+    has_colon_dialogue = len(re.findall(r"^[A-Za-z ]+:(?!//)", text, re.MULTILINE)) >= 1
+    has_parentheticals = len(re.findall(r"\\(.*?\\)", text)) >= 1
+
+    heuristics_score = sum([
+        has_keywords,
+        has_capitalized_lines,
+        has_colon_dialogue,
+        has_parentheticals,
+        len(text.split()) > 30
+    ])
+
+    return heuristics_score >= 2
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
