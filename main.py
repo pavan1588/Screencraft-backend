@@ -37,12 +37,10 @@ def is_valid_scene(text: str) -> bool:
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
-    return True if (
-        has_dialogue or has_cinematic_cues or
-        (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))
-    ) else False
+    has_keywords = any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"])
+    return has_dialogue or has_keywords or len(text.split()) > 20
 
+# Basic in-memory rate limiter
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
     RATE_LIMIT.setdefault(ip, [])
@@ -52,6 +50,7 @@ def rate_limiter(ip, window=60, limit=10):
     RATE_LIMIT[ip].append(now)
     return True
 
+# Password rotation
 def rotate_password():
     global STORED_PASSWORD, PASSWORD_USAGE_COUNT
     new_token = f"SCENECRAFT-{int(time.time())}"
@@ -60,6 +59,18 @@ def rotate_password():
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
     print("Password rotated to:", new_token)
+
+# Strip benchmark terms if AI leaks them
+def sanitize_response(text: str) -> str:
+    forbidden_terms = [
+        r"Chekhov['’]s Gun", r"Save the Cat", r"The Iceberg Theory", r"The MacGuffin",
+        r"Shot-Reverse-Shot", r"Show, Don’t Tell", r"Setup and Payoff",
+        r"Symbolic Echoes", r"Cinematic grammar", r"Visual Grammar",
+        r"The Rule of Three", r"Escalation", r"Dramatic Irony", r"Button Line"
+    ]
+    for term in forbidden_terms:
+        text = re.sub(term, "[cinematic technique]", text, flags=re.IGNORECASE)
+    return text
 
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
@@ -81,7 +92,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "Please input a valid cinematic scene, dialogue, monologue, or script excerpt."}
+        return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -179,7 +190,7 @@ Assume all character names are proper nouns and should not be expanded or interp
             if any(g in content.lower() for g in generation_indicators):
                 return {"error": "Scene generation is not supported. The tool only analyzes cinematic input."}
 
-            return {"analysis": content.strip()}
+            return {"analysis": sanitize_response(content.strip())}
 
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
