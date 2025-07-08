@@ -183,7 +183,7 @@ Assume all character names are pre-existing and do not invent any. If text is in
         ]
     }
 
-    try:
+       try:
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
@@ -193,11 +193,23 @@ Assume all character names are pre-existing and do not invent any. If text is in
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-           if "CHARACTER:" in content.upper() or "INT." in content[:20] or "EXT." in content[:20]:
-    return {
-        "error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."
-    }
-return {"analysis": content.strip()}
+
+            # 🚫 BLOCK if model starts generating a scene
+            if "CHARACTER:" in content.upper() or "INT." in content[:20] or "EXT." in content[:20]:
+                return {
+                    "error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."
+                }
+
+            return {"analysis": content.strip()}
+
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(
+            status_code=e.response.status_code,
+            detail=f"OpenRouter API error: {e.response.text}"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
