@@ -193,9 +193,12 @@ Assume all character names are pre-existing and do not invent any. If text is in
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            if "CHARACTER:" in content.upper() or "INT." in content[:20] or "EXT." in content[:20]:
-    return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
-            return {"analysis": content.strip()}
+           if "CHARACTER:" in content.upper() or "INT." in content[:20] or "EXT." in content[:20]:
+    return {
+        "error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."
+    }
+
+return {"analysis": content.strip()}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
