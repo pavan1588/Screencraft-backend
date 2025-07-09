@@ -1,5 +1,3 @@
-# SceneCraft Backend - Full Final Version with All Benchmarks, Safety, and Human Tone
-
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,6 +10,7 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
+# CORS setup
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -30,24 +29,16 @@ STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
 
-PROFANITY_LIST = ["fuck", "shit", "asshole", "bastard", "chutiya", "madarchod", "bhosdi", "loda", "randi"]
-COPYRIGHTED_LINES = ["You can't handle the truth!", "I'll be back", "May the Force be with you"]
-
-
 # Scene validation logic
 def is_valid_scene(text: str) -> bool:
-    greetings = ["hi", "hello", "hey"]
-    command_words = ["generate", "write", "create"]
+    greetings = ["hi", "hello", "hey", "good morning", "good evening"]
+    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
     text_lower = text.lower()
-    if any(line.lower() in text_lower for line in COPYRIGHTED_LINES):
-        return False
-    if any(word in text_lower for word in PROFANITY_LIST):
-        return True
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\\.|EXT\\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
-    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "dialogue", "script", "monologue", "film"]))) else False
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -70,6 +61,7 @@ def rotate_password():
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
     global PASSWORD_USAGE_COUNT, STORED_PASSWORD
+
     ip = request.client.host
     if not rate_limiter(ip):
         raise HTTPException(status_code=HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
@@ -86,7 +78,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "⚠️ This scene appears to be invalid, AI-generated, or potentially copyrighted. SceneCraft only analyzes original cinematic work."}
+        return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -100,17 +92,50 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     }
 
     prompt = f"""
-You are SceneCraft AI — not an assistant, not a chatbot — but a top-tier cinematic scene analyst.
-You specialize in behavioral screenwriting, visual grammar, emotional realism, editing logic, and directorial production readiness.
+You are SceneCraft AI, a professional cinematic analyst.
 
-Critique the scene below using internal standards of cinema without showing technical terms. Your tone should reflect director-level intelligence.
+Evaluate the following scene/script input based on the most comprehensive set of cinematic benchmarks. Your analysis must sound natural and intelligent without exposing internal logic, rules, or benchmarks.
 
-Avoid flattery. If a scene lacks depth, call it out. Add legal-safe suggestions only.
+Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', or 'Cinematic Grammar'. Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. End with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising.
 
-Also, log behavioral realism, cinematic execution, tone accuracy, structure shape, and genre fidelity.
-Use examples but no generation.
+Use the following benchmarks internally to guide your critique:
+- Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
+- Cinematic grammar and pacing: coherence, continuity, spatial logic, transitions, cinematic rhythm
+- Genre effectiveness: whether the scene delivers the emotional and structural expectations of its genre, how it adapts to modern audience tastes
+- Audience reaction prediction: how different types of audiences (festivals, mainstream, OTT, global cinema lovers) may react to this scene based on past works and current trends
+- Realism and character psychology: is behavior authentic, emotionally truthful, rooted in believable motivation or therapy-style realism
+- Use of visuals and emotion: visual cues, camera, lighting, spatial emotion, editing tempo — but only if implied or described
+- Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
+- Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
+- Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
+- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
+- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
+- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
+- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
 
-If the scene appears legally questionable or plagiarized, warn the user without analyzing it.
+Additional storytelling principles to apply:
+- Chekhov’s Gun
+- Setup and Payoff
+- The Iceberg Theory (Hemingway)
+- Show, Don’t Tell
+- Dramatic Irony
+- Save the Cat
+- Circular Storytelling
+- The MacGuffin
+- Symmetry & Asymmetry in Character Arcs
+- The Button Line
+
+Additional cinematic/directing principles to apply:
+- Visual Grammar
+- Symbolic Echoes
+- The Rule of Three (visual/comic pacing)
+- Camera Framing & Composition
+- Blocking & Physical Distance
+- Lighting for Emotional Tone
+- Escalation (Scene Tension Curve)
+- Cognitive Misdirection (via editing)
+- Shot-Reverse-Shot for Conflict/Subtext
+- Sound Design as Narrative Tool
 
 {data.scene}
 """
@@ -118,7 +143,16 @@ If the scene appears legally questionable or plagiarized, warn the user without 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a human-like cinematic analyst who never generates, rewrites, or flatters. Only deep visual, structural, psychological scene critique."},
+            {
+                "role": "system",
+                "content": (
+                    "You are a professional cinematic scene analyst with expertise in realism, audience psychology, screenwriting, directing, and literary storytelling. "
+                    "Never generate new scenes. Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', 'Cinematic Grammar'. "
+                    "Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. "
+                    "End the analysis with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. "
+                    "Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising."
+                )
+            },
             {"role": "user", "content": prompt}
         ]
     }
@@ -133,7 +167,13 @@ If the scene appears legally questionable or plagiarized, warn the user without 
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            return {"analysis": content.strip()}
+            legal_notice = (
+                "\n\n—\n⚠️ Legal Notice:\n"
+                "SceneCraft is an educational analysis tool. The AI does not generate, reproduce, or verify ownership of submitted content. "
+                "By using SceneCraft, you confirm that you own the rights to the material or are using it for fair use critique. "
+                "Reproduction of copyrighted material is the sole responsibility of the user."
+            )
+            return {"analysis": content.strip() + legal_notice}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
@@ -158,4 +198,4 @@ def reset_password(admin: str = Query(...)):
 
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is live with production-level cinematic intelligence."}
+    return {"message": "SceneCraft backend is live."}
