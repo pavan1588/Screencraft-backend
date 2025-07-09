@@ -175,7 +175,7 @@ def terms():
         <p>© SceneCraft 2025. All rights reserved.</p>
       </body>
     </html>
-    """)
+    ")
 
 @app.get("/")
 def root():
