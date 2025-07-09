@@ -137,7 +137,7 @@ Scene:
             content = result["choices"][0]["message"]["content"]
             return {
                 "analysis": content.strip(),
-                "notice": "\u26a0\ufe0f You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
+                "notice": "⚠️ You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
             }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
@@ -146,7 +146,8 @@ Scene:
 
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
-    return HTMLResponse(content="""
+    html = """
+    <!DOCTYPE html>
     <html>
       <head><title>SceneCraft – Terms of Use</title></head>
       <body style='font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; line-height: 1.6;'>
@@ -175,7 +176,8 @@ def terms():
         <p>© SceneCraft 2025. All rights reserved.</p>
       </body>
     </html>
-    ")
+    """
+    return HTMLResponse(content=html)
 
 @app.get("/")
 def root():
