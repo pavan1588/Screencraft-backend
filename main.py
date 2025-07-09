@@ -1,16 +1,18 @@
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 import httpx
 import os
 import re
 import time
 import json
+from datetime import datetime
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
-# CORS setup
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -28,21 +30,10 @@ PASSWORD_USAGE_COUNT = 0
 STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
+LOG_FILE = "scene_log.jsonl"
 
-# Profanity/Slang blacklist (sample)
-SLANG_BLACKLIST = [
-    "chutiya", "bhosdi", "madarchod", "fuck", "shit", "bitch", "asshole",
-    "mc", "bc", "gaand", "loda", "behenchod", "kutti", "nigger", "cunt"
-]
-
-def contains_profanity(text: str) -> bool:
-    text_lower = text.lower()
-    return any(bad_word in text_lower for bad_word in SLANG_BLACKLIST)
-
-# Scene validation logic
+# --- Scene validation ---
 def is_valid_scene(text: str) -> bool:
-    if contains_profanity(text):
-        return False
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
     command_words = ["generate", "write a scene", "compose a script", "create a scene"]
     text_lower = text.lower()
@@ -52,6 +43,14 @@ def is_valid_scene(text: str) -> bool:
     has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
     return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
 
+# --- Profanity blocklist (basic) ---
+PROFANITY_LIST = ["fuck", "shit", "bitch", "asshole", "chod", "gandu", "loda", "randi", "madarchod", "bhenchod", "mc", "bc"]
+
+def contains_profanity(text: str) -> bool:
+    text_lower = text.lower()
+    return any(bad in text_lower for bad in PROFANITY_LIST)
+
+# --- Rate Limiting ---
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
     RATE_LIMIT.setdefault(ip, [])
@@ -68,33 +67,47 @@ def rotate_password():
     PASSWORD_USAGE_COUNT = 0
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
-    print("Password rotated to:", new_token)
 
+# --- Scene Logging ---
+def log_scene(ip, scene_text):
+    with open(LOG_FILE, "a", encoding="utf-8") as logf:
+        logf.write(json.dumps({
+            "timestamp": datetime.utcnow().isoformat(),
+            "ip": ip,
+            "text": scene_text[:300] + ("..." if len(scene_text) > 300 else "")
+        }) + "\n")
+
+# --- Analyze Route ---
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
     global PASSWORD_USAGE_COUNT, STORED_PASSWORD
 
     ip = request.client.host
     if not rate_limiter(ip):
-        return {"error": "Rate limit exceeded"}
+        return JSONResponse(status_code=HTTP_429_TOO_MANY_REQUESTS, content={"error": "Rate limit exceeded"})
 
     if not authorization or not authorization.startswith("Bearer "):
-        return {"error": "Unauthorized: Missing or invalid token"}
+        return JSONResponse(status_code=401, content={"error": "Unauthorized: Missing or invalid token"})
 
     token = authorization.split("Bearer ")[1]
     if token != STORED_PASSWORD:
-        return {"error": "Forbidden: Invalid access token"}
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Invalid access token"})
 
     PASSWORD_USAGE_COUNT += 1
     if PASSWORD_USAGE_COUNT >= ROTATION_THRESHOLD:
         rotate_password()
 
+    if contains_profanity(data.scene):
+        return JSONResponse(status_code=400, content={"error": "Profanity or abusive language detected. Please revise your input."})
+
     if not is_valid_scene(data.scene):
-        return {"error": "Invalid or non-cinematic input. Do not include profanity, casual chat, or generated requests."}
+        return JSONResponse(status_code=400, content={"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."})
+
+    log_scene(ip, data.scene)
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
-        return {"error": "Missing OpenRouter API key"}
+        return JSONResponse(status_code=500, content={"error": "Missing OpenRouter API key"})
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -104,7 +117,16 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst. Evaluate this scene for story structure, realism, directing insight, emotional beats, and visual tension. Include director-level notes, practical suggestions, and comparative references. Do not generate content. Focus on critique only.
+You are SceneCraft AI, a professional cinematic analyst. Evaluate the scene/script excerpt below using professional human tone.
+
+Avoid listing benchmark names. Integrate the following principles fluidly into your output:
+- Emotional realism
+- Scene structure and tension
+- Character psychology and motivations
+- Genre tone and audience effect
+- Directorial grammar and visual pressure
+- Examples from global cinema scenes
+- Conclude with clear “Suggestions” section only
 
 Scene:
 {data.scene}
@@ -113,56 +135,67 @@ Scene:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "Professional cinematic scene analyst. Never generate content. Only analyze."},
+            {"role": "system", "content": "You are a cinematic story analyst. Do not generate. Provide human-grade scene critique using director-level insight."},
             {"role": "user", "content": prompt}
         ]
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload
-            )
-            response.raise_for_status()
-            result = response.json()
-            if "choices" not in result or not result["choices"]:
-                raise ValueError("Model returned no output.")
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
 
-            content = result["choices"][0]["message"]["content"]
-            legal_notice = (
-                "\n\n—\n⚠️ Legal Notice:\n"
-                "SceneCraft is for educational cinematic critique only. You are responsible for rights to submitted content."
-            )
-            return {"analysis": content.strip() + legal_notice}
+            try:
+                result = response.json()
+                content = result["choices"][0]["message"]["content"]
+                return {"analysis": content.strip()}
+            except Exception:
+                return JSONResponse(status_code=500, content={"error": "OpenRouter returned invalid response."})
+
     except Exception as e:
-        return {"error": f"Server error: {str(e)}"}
+        return JSONResponse(status_code=500, content={"error": f"Unexpected backend error: {str(e)}"})
 
-@app.get("/terms")
+# --- Admin Password Routes ---
+@app.get("/password")
+def get_password(admin: str = Query(...)):
+    if admin != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Unauthorized admin access")
+    try:
+        with open(PASSWORD_FILE, "r") as f:
+            return json.load(f)
+    except:
+        return {"password": STORED_PASSWORD}
+
+@app.post("/password/reset")
+def reset_password(admin: str = Query(...)):
+    if admin != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Unauthorized admin access")
+    rotate_password()
+    return {"message": "Password manually rotated.", "new_password": STORED_PASSWORD}
+
+# --- Legal / Terms Page ---
+@app.get("/terms", response_class=HTMLResponse)
 def get_terms():
-    return {
-        "terms": """
-        By using SceneCraft, you agree to:
-        - Submit only original or authorized material.
-        - Avoid uploading copyrighted, abusive, or personal data.
-        - Accept that this tool is only for cinematic critique and educational use.
-        - Understand that SceneCraft is not liable for any content you submit.
-        """,
-        "usage_policy": """
-        - Do not abuse or spam this service.
-        - Do not attempt to use this tool for content generation.
-        - Feedback is automatically generated based on scene inputs for educational review.
-        - Repeated misuse may result in IP bans or access restrictions.
-        """,
-        "legal_disclaimer": """
-        SceneCraft does not verify copyright ownership.
-        All responsibility for submitted material lies with the user.
-        This tool offers automated scene critique using AI.
-        Use of SceneCraft indicates acceptance of these terms.
-        """
-    }
+    html = """
+    <html>
+    <head><title>SceneCraft Terms & Usage</title></head>
+    <body style='font-family:sans-serif;max-width:800px;margin:auto;padding:2rem;line-height:1.6'>
+      <h1>Terms & Conditions</h1>
+      <p>By using SceneCraft, you agree to the following:</p>
+      <ul>
+        <li>You are submitting content for critique only.</li>
+        <li>You retain full responsibility for any uploaded material.</li>
+        <li>SceneCraft does not store or reuse your scene data beyond trace logs.</li>
+        <li>We do not verify originality of your content. Copyright remains your responsibility.</li>
+        <li>No scene generation, copying, or AI writing is allowed or supported.</li>
+      </ul>
+      <h2>Legal Disclaimer</h2>
+      <p>This tool is for educational and analysis purposes only. It does not replace professional consultation. All feedback is subjective, and SceneCraft is not liable for any professional or commercial outcomes based on this critique.</p>
+      <p>Use of this tool constitutes acceptance of these terms.</p>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html)
 
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is running"}
+    return {"message": "SceneCraft backend is live."}
