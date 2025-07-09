@@ -1,13 +1,14 @@
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, HTMLResponse
 from pydantic import BaseModel
 import httpx
 import os
 import re
 import time
 import json
-from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 from datetime import datetime
+from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
@@ -22,7 +23,6 @@ app.add_middleware(
 
 class SceneRequest(BaseModel):
     scene: str
-    accepted_terms: bool
 
 RATE_LIMIT = {}
 ROTATION_THRESHOLD = 50
@@ -30,7 +30,23 @@ PASSWORD_USAGE_COUNT = 0
 STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
-TRACE_LOG = "usage_log.json"
+LOG_FILE = "scene_logs.json"
+
+# Slang + profanity check
+profanity_keywords = ["fuck", "shit", "bastard", "madarchod", "bhenchod", "suar", "kutte", "cunt", "asshole", "gandu"]
+def contains_profanity(text: str) -> bool:
+    return any(bad in text.lower() for bad in profanity_keywords)
+
+# Logging for traceability
+def log_request(ip: str, scene: str):
+    log_entry = {
+        "ip": ip,
+        "timestamp": datetime.utcnow().isoformat(),
+        "length": len(scene),
+        "preview": scene[:120].strip().replace("\n", " ") + "..."
+    }
+    with open(LOG_FILE, "a") as log_file:
+        log_file.write(json.dumps(log_entry) + "\n")
 
 # Scene validation logic
 def is_valid_scene(text: str) -> bool:
@@ -39,14 +55,11 @@ def is_valid_scene(text: str) -> bool:
     text_lower = text.lower()
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
+    if contains_profanity(text_lower):
+        return False
     has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\\.|EXT\\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
+    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
     return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
-
-def contains_profanity_or_slang(text: str) -> bool:
-    slang_terms = ["bhosdi", "mc", "bc", "bkl", "fuck", "shit", "saala", "randi", "gandu", "chutiya"]  # Extend this list
-    text_lower = text.lower()
-    return any(slang in text_lower for slang in slang_terms)
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -66,50 +79,33 @@ def rotate_password():
         json.dump({"password": new_token}, f)
     print("Password rotated to:", new_token)
 
-def log_usage(ip, scene):
-    try:
-        with open(TRACE_LOG, "a") as f:
-            f.write(json.dumps({
-                "ip": ip,
-                "timestamp": datetime.utcnow().isoformat(),
-                "excerpt": scene[:100]  # log only first 100 chars
-            }) + "\n")
-    except:
-        pass
-
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
     global PASSWORD_USAGE_COUNT, STORED_PASSWORD
 
     ip = request.client.host
     if not rate_limiter(ip):
-        raise HTTPException(status_code=HTTP_429_TOO_MANY_REQUESTS, detail="Rate limit exceeded")
+        return JSONResponse(status_code=HTTP_429_TOO_MANY_REQUESTS, content={"error": "Rate limit exceeded"})
 
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Unauthorized: Missing or invalid token")
+        return JSONResponse(status_code=401, content={"error": "Unauthorized: Missing or invalid token"})
 
     token = authorization.split("Bearer ")[1]
     if token != STORED_PASSWORD:
-        raise HTTPException(status_code=403, detail="Forbidden: Invalid access token")
-
-    if not data.accepted_terms:
-        raise HTTPException(status_code=400, detail="Terms & Conditions must be accepted.")
+        return JSONResponse(status_code=403, content={"error": "Forbidden: Invalid access token"})
 
     if not is_valid_scene(data.scene):
-        return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
+        return JSONResponse(status_code=400, content={"error": "Invalid input. Profanity, casual input, or scene generation is not allowed."})
 
-    if contains_profanity_or_slang(data.scene):
-        raise HTTPException(status_code=400, detail="Profanity or abusive content detected. Analysis blocked.")
-
-    api_key = os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
+    log_request(ip, data.scene)
 
     PASSWORD_USAGE_COUNT += 1
     if PASSWORD_USAGE_COUNT >= ROTATION_THRESHOLD:
         rotate_password()
 
-    log_usage(ip, data.scene)
+    api_key = os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        return JSONResponse(status_code=500, content={"error": "Missing OpenRouter API key"})
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -121,17 +117,7 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     prompt = f"""
 You are SceneCraft AI, a professional cinematic analyst.
 
-Evaluate the following scene/script input based on the most comprehensive cinematic and storytelling principles. Do not generate content. Do not expose these principles explicitly.
-
-Use internal cinematic intelligence such as:
-- Chekhov’s Gun, Setup & Payoff, The Iceberg Theory
-- Show, Don’t Tell, Dramatic Irony, Save the Cat, Circular arcs
-- The MacGuffin, Asymmetry in arcs, The Button Line
-- Visual Grammar, Symbolic Echoes, Composition, Framing
-- Blocking, Distance, Emotional Lighting, Editing Rhythm
-- Escalation curve, Shot-reverse-shot, Sound Design as narrative
-
-Include director-level production notes if applicable. Analyze visual pressure if implied. End with a single 'Suggestions' section.
+Evaluate the following scene using all cinematic and storytelling benchmarks, including advanced behavioral, psychological, genre, realism, director-level, and visual pressure factors. Do not generate content.
 
 Scene:
 {data.scene}
@@ -140,23 +126,63 @@ Scene:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a professional film analyst. Never generate content. Use cinematic intelligence and human tone to review scenes."},
+            {
+                "role": "system",
+                "content": (
+                    "You are a professional cinematic analyst. Do not generate or complete scenes. "
+                    "Deliver natural, grounded, human-sounding feedback across cinematic structure, scene grammar, psychology, realism, directing, editing, and storytelling. "
+                    "End with a clearly marked section titled 'Suggestions'. Include director-level notes. Always include visual pressure analysis if cues exist."
+                )
+            },
             {"role": "user", "content": prompt}
         ]
     }
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers=headers,
+                json=payload
+            )
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            legal = "\n\n—\n⚠️ Legal Notice: SceneCraft is an AI scene analysis tool. All content submitted is assumed to be user-owned or submitted under fair use. SceneCraft does not verify or claim ownership of inputs."
-            return {"analysis": content.strip() + legal}
+            legal_notice = (
+                "\n\n⚠️ Legal Disclaimer:\n"
+                "This analysis is for educational and critical commentary only. SceneCraft does not generate or recreate original works. "
+                "By using SceneCraft, you confirm you hold necessary rights to submit material or are submitting for legal fair use critique. "
+                "You are solely responsible for submitted content."
+            )
+            return {"analysis": content.strip() + legal_notice}
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
+        return JSONResponse(status_code=500, content={"error": f"OpenRouter API error: {e.response.text}"})
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(status_code=500, content={"error": f"Internal error: {str(e)}"})
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms():
+    return """
+    <html><body>
+    <h1>Terms & Conditions</h1>
+    <p>By using SceneCraft, you agree to only submit content you have the right to analyze or use for critique under fair use.</p>
+    <p>SceneCraft is intended strictly for educational and analytical purposes. Misuse may result in termination of access.</p>
+    <p>No data is shared with third parties. All analyses are stored only for internal logging and improvement.</p>
+    <p>Do not upload copyrighted, sensitive, or private material you do not have rights to analyze.</p>
+    </body></html>
+    """
+
+@app.get("/policy", response_class=HTMLResponse)
+def policy():
+    return """
+    <html><body>
+    <h1>Usage Policy</h1>
+    <p>SceneCraft is a scene analysis tool designed for screenwriters, filmmakers, students, and critics.</p>
+    <p>All output is educational, interpretative, and may reflect subjective cinematic principles.</p>
+    <p>No scene generation or creation is permitted. Offensive, harmful, or illegal submissions are strictly prohibited.</p>
+    <p>Your IP and timestamp may be logged for safety, performance, and abuse prevention.</p>
+    </body></html>
+    """
 
 @app.get("/password")
 def get_password(admin: str = Query(...)):
@@ -177,10 +203,4 @@ def reset_password(admin: str = Query(...)):
 
 @app.get("/")
 def root():
-    return {"message": "SceneCraft backend is live."}
-
-@app.get("/terms")
-def terms():
-    return {
-        "terms": "By using SceneCraft, you agree that all content you submit is either your original work or used under fair use. SceneCraft is not liable for submitted material. Usage is logged for security and traceability. Do not submit copyrighted scripts."
-    }
+    return {"message": "SceneCraft backend is live and healthy."}
