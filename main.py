@@ -94,24 +94,26 @@ async def analyze_scene(
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
-        "HTTP-Referer": "https://yourapp.com",
+        "HTTP-Referer": "https://scenecraft.app",
         "X-Title": "SceneCraft"
     }
 
     prompt = f"""
-You are SceneCraft AI — a master-level cinematic analyst and creative mentor.
-You understand every layer of the filmmaking process: writing, direction, editing, sound, psychology, realism, blocking, cinematography, and audience experience.
-You do not generate content. You analyze user-submitted scenes with depth, creativity, and professionalism.
+You are SceneCraft AI — a creative mentor and expert cinematic analyst.
 
-Rules:
-- Detect and interpret the input as a scene, script, monologue, or dialogue. Reject casual or random text.
-- Apply cinematic grammar, intelligence, and production insight in your feedback.
-- Include director-level notes, symbolic echoes, camera tension, visual pressure, lighting, misdirection, sound, escalation, and spatial composition — interpret and blend them into human-readable output.
-- Your analysis must be helpful, intuitive, and grounded in global cinema examples — modern and classic.
-- Always include relevant movie scene references (no quotes) in both analysis and suggestions.
-- Suggestions should be gentle and practical — no heavy rewrites. Suggest emotional tone shifts, rhythm adjustments, or spatial dynamics.
+You must:
+- Understand what makes a scene work (structure, realism, subtext, tone, symbolism, emotion, blocking, direction, cinematic grammar)
+- Never generate or complete scenes
+- Always evaluate with fun, helpful suggestions — never academic
+- Include relevant references (e.g., scenes like the diner in *Heat*, or staircase moment in *Parasite*)
+- Use production language smartly but don’t expose technical terms like "Chekhov’s Gun", "Save the Cat", etc. Instead, explain with relatable examples
+- Blend both classic and modern cinema understanding
+- Include director-level notes, subtle rewrite hints, visual tension, scene rhythm, emotional beats
+- Make feedback human, not robotic. Your tone is supportive and creative
+- Use examples when needed: “The tension could build more like the climax in *Whiplash*.”
 
-Tone: Creative, grounded, warm — like a director talking to another filmmaker.
+You understand all storytelling principles including:
+Chekhov’s Gun, Setup & Payoff, Iceberg Theory, Show Don't Tell, Dramatic Irony, Save the Cat, Circular Structure, The MacGuffin, Button Line, Character Arc Symmetry, Blocking, Camera Tension, Cognitive Misdirection, Lighting, Symbolic Echoes.
 
 Scene:
 {data.scene}
@@ -120,7 +122,10 @@ Scene:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a human-like film mentor. Never generate or fix scenes. Always interpret with full cinematic insight and give engaging, example-based guidance."},
+            {
+                "role": "system",
+                "content": "You are SceneCraft AI — a creative film doctor. Never write or generate content. Offer natural, intuitive feedback using deep cinematic insight across writing, directing, editing, sound, tone, and behavioral psychology."
+            },
             {"role": "user", "content": prompt}
         ]
     }
@@ -137,7 +142,7 @@ Scene:
             content = result["choices"][0]["message"]["content"]
             return {
                 "analysis": content.strip(),
-                "notice": "⚠️ You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
+                "notice": "⚠️ This is a creative analysis only. You are responsible for the content and its originality."
             }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
@@ -153,25 +158,25 @@ def terms():
       <body style='font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; line-height: 1.6;'>
         <h2>SceneCraft – Legal Terms & Usage Policy</h2>
         <h3>User Agreement</h3>
-        <p>By using SceneCraft, you agree to submit only content that you own or are authorized to analyze. You understand this tool is for creative analysis only and not content generation.</p>
+        <p>By using SceneCraft, you agree to submit only content that you own or are authorized to analyze. This platform is for creative cinematic analysis only.</p>
 
-        <h3>Legal Disclaimer</h3>
-        <p>SceneCraft does not store, copy, or generate any content. It offers AI-assisted cinematic analysis using global film language benchmarks and storytelling intelligence. You remain the owner of all submitted content.</p>
+        <h3>Disclaimer</h3>
+        <p>SceneCraft is not a generator. It analyzes your scene using principles of filmmaking and storytelling. You remain responsible for submitted content.</p>
 
         <h3>Usage Policy</h3>
         <ul>
-          <li>Submit only cinematic scenes, monologues, dialogues, or script excerpts.</li>
-          <li>No casual text, random prompts, or scene generation is allowed.</li>
-          <li>Usage may be limited or monitored to prevent abuse or copyright risk.</li>
+          <li>Submit scenes, monologues, dialogues, or excerpts — not random text.</li>
+          <li>Do not submit third-party copyrighted material.</li>
+          <li>All analysis is creative and not legal validation.</li>
         </ul>
 
         <h3>Copyright Responsibility</h3>
-        <p>You are solely responsible for the legality and authorship of the material submitted. SceneCraft cannot verify copyright ownership and does not offer legal protection or certification.</p>
+        <p>You are fully responsible for the originality and rights of the content you submit. SceneCraft does not store or certify authorship.</p>
 
         <h3>About SceneCraft</h3>
-        <p>SceneCraft is a cinematic feedback and education tool, blending behavioral realism, cinematic grammar, production design, and visual storytelling into meaningful analysis. It is not a content creation engine.</p>
+        <p>SceneCraft is a cinematic assistant. It brings together story grammar, realism, editing cues, and audience insight to help writers and creators improve their scenes creatively.</p>
 
-        <p style="margin-top: 2rem;"><em>SceneCraft empowers creators through creative insight, not automation. Every scene has a soul — we help you reveal it.</em></p>
+        <p style="margin-top: 2rem;"><em>Created for filmmakers, storytellers, and writers who want sharper scenes, not shortcuts.</em></p>
         <hr />
         <p>© SceneCraft 2025. All rights reserved.</p>
       </body>
