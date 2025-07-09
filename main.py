@@ -11,7 +11,7 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
-# CORS setup
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -86,7 +86,7 @@ async def analyze_scene(
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
+        return {"error": "Enter a valid scene or script excerpt for analysis. Scene generation is not supported."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -100,34 +100,23 @@ async def analyze_scene(
     }
 
     prompt = f"""
-You are SceneCraft AI, a professional cinematic analyst.
+You are SceneCraft AI — a wise, creative, and cinematic mentor trained in every aspect of storytelling, screenwriting, direction, editing, and visual storytelling across eras and cultures.
 
-Evaluate the following scene or script excerpt using the most advanced cinematic and storytelling benchmarks. Do not generate content. Avoid listing or naming cinematic principles directly. Instead, base your insights and suggestions implicitly on these principles and explain through intuitive language and examples.
+Your job is to analyze scenes as if you're mentoring a writer or filmmaker. Never generate content. Focus only on what the user gave you.
 
-🔍 Include behavioral triggers and motivations behind character actions.
-🎬 Provide director-level production insights (e.g., timing, blocking, visual rhythm, tonal modulation).
-🔴 Mention visual pressure or frame-based tension when appropriate (e.g., "This moment holds visual pressure similar to the final hallway in *Birdman*").
+Here’s how you should respond:
+- Make your feedback inspiring, practical, and human.
+- Avoid academic terms. Use movie examples or intuitive phrases instead of naming concepts like 'Chekhov’s Gun'.
+- Be honest, but never discouraging. Speak with the voice of an experienced screen doctor or story consultant.
+- Help the user find clarity, rhythm, emotional connection, tension, character drive, and cinematic strength in the scene.
+- Do not reference cinematic 'rules' or internal benchmarks. Use creative analogies, examples, and friendly advice.
+- Highlight strengths and areas for improvement naturally.
 
-In your analysis, draw from timeless cinematic storytelling patterns. When appropriate:
-- Identify objects, lines, or moments that may need clearer connection or payoff later in the scene (e.g., a lighter introduced early but unused).
-- Point out if something important is shown too directly instead of being revealed through behavior or tension.
-- Suggest where leaving emotional meaning beneath the surface may improve the scene’s depth.
-- Call out missed chances for tension where the audience knows more than the character.
-- Highlight beats that could emotionally turn a character's arc full circle.
-- Mention if character action contradicts their earlier behavior in a distracting way.
-- Comment when a final line or image could leave a sharper echo, or if symmetry is lacking between beginning and end.
-- Recommend strengthening cause-effect between setup and resolution.
-- Gently point out where exposition might be replaced with action, subtext, or silence.
-- If the story hinges on a goal, object, or pursuit, check if it drives the characters meaningfully.
+When needed, compare moments in the user’s scene to great scenes from world cinema — subtly, without quoting lines.
 
-Your analysis must reference relevant film moments (e.g., "This echoes the restaurant conversation in *The Irishman*") when they enhance clarity. Use these only to support insight—not for name-dropping.
+🎬 Suggestions section must include helpful, fun rewrite ideas that stir the writer’s imagination. (e.g., “You might let the tension build longer, like that quiet kitchen moment in *A Separation*.”)
 
-Your output should include:
-- A grounded and creative cinematic evaluation that touches on realism, structure, pacing, tone, and emotional authenticity.
-- When offering feedback, include subtle rewrite hints using examples, not rules. (e.g., "You might hold back this reveal to build tension, like the motel sequence in *No Country for Old Men*.")
-- End with a clearly labeled section called **Suggestions**, written naturally—not as bullet points, but in helpful, intuitive language.
-
-Never include headings like “Scene Grammar” or internal categories. Never generate or complete any scenes.
+🎯 Your tone: human, grounded, warm, film-literate — like a screenwriter’s best creative partner.
 
 Scene:
 {data.scene}
@@ -138,7 +127,7 @@ Scene:
         "messages": [
             {
                 "role": "system",
-                "content": "You are a highly skilled film analyst. Never generate or complete scenes. Avoid stating benchmark names. Provide insight-rich evaluations and constructive feedback with relevant movie scene references."
+                "content": "You are a skilled cinematic mentor. You never generate scenes. You analyze real cinematic material with creative, example-rich, and human feedback."
             },
             {"role": "user", "content": prompt}
         ]
@@ -156,7 +145,7 @@ Scene:
             content = result["choices"][0]["message"]["content"]
             return {
                 "analysis": content.strip(),
-                "notice": "⚠️ Note: You are responsible for the originality and legality of the submitted content. SceneCraft is for cinematic analysis only. No scene generation, reproduction, or copyright infringement is allowed."
+                "notice": "⚠️ You are responsible for the legality and originality of your submission. SceneCraft provides cinematic analysis only — not legal validation or copyright protection."
             }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
@@ -186,22 +175,35 @@ def root():
 
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
-    html_content = """
+    html = """
     <html>
-      <head><title>SceneCraft Terms & Conditions</title></head>
-      <body style="font-family: sans-serif; padding: 2rem;">
-        <h2>SceneCraft – Terms & Conditions</h2>
-        <p><strong>By using SceneCraft, you agree to the following:</strong></p>
+      <head><title>SceneCraft – Terms & Conditions</title></head>
+      <body style="font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; line-height: 1.6;">
+        <h2>SceneCraft – Legal Notice & Terms of Use</h2>
+
+        <h3>Legal Disclaimer</h3>
+        <p>SceneCraft is an AI-powered cinematic analysis tool. It does not generate, reproduce, or store any copyrighted scenes. It only analyzes user-submitted content in real-time using benchmarked cinematic knowledge.</p>
+
+        <h3>User Agreement</h3>
+        <p>By using SceneCraft, you confirm that you are submitting original content that you own or are authorized to analyze. You agree not to submit copyrighted material you do not have rights to.</p>
+
+        <h3>Usage Policy</h3>
         <ul>
-          <li>You are submitting original content you own or have permission to use.</li>
-          <li>SceneCraft provides only cinematic analysis—not content generation or legal validation.</li>
-          <li>You are fully responsible for your submitted content.</li>
-          <li>Usage is tracked for security and misuse prevention.</li>
+          <li>SceneCraft is strictly for cinematic analysis only.</li>
+          <li>SceneCraft does not generate or edit scripts, nor does it produce original content.</li>
+          <li>Abuse of this tool may result in blocked access.</li>
         </ul>
-        <p>Any misuse of SceneCraft for plagiarism, content scraping, or copyright violation may result in access revocation.</p>
-        <hr>
-        <p><em>All rights reserved © SceneCraft 2025</em></p>
+
+        <h3>Copyright Warning</h3>
+        <p>You are solely responsible for the legality of the material you submit. Submitting copyrighted material you do not own may violate local and international copyright laws.</p>
+
+        <h3>Content Logging</h3>
+        <p>All usage is tracked anonymously for rate limiting and content responsibility.</p>
+
+        <p style="margin-top: 2rem;"><em>SceneCraft is a creative companion, not a publishing platform. Use it wisely.</em></p>
+        <hr />
+        <p>© SceneCraft 2025. All rights reserved.</p>
       </body>
     </html>
     """
-    return HTMLResponse(content=html_content)
+    return HTMLResponse(content=html)
