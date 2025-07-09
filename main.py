@@ -11,7 +11,6 @@ from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,9 +35,9 @@ def is_valid_scene(text: str) -> bool:
     text_lower = text.lower()
     if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
         return False
-    has_dialogue = re.search(r"[A-Z][a-z]+\s*\(.*?\)|[A-Z]{2,}.*:|\[.*?\]", text)
-    has_cinematic_cues = re.search(r"\b(INT\.|EXT\.|CUT TO:|FADE IN:)\b", text, re.IGNORECASE)
-    return True if (has_dialogue or has_cinematic_cues or (len(text.split()) > 20 and any(p in text_lower for p in ["character", "scene", "dialogue", "script", "monologue", "film"]))) else False
+    has_keywords = any(word in text_lower for word in ["scene", "dialogue", "monologue", "script", "character"])
+    has_format_clues = re.search(r"[A-Z]{2,}:|\(.*?\)|\bINT\.|\bEXT\.|\bCUT TO:|\bFADE IN:", text)
+    return True if has_format_clues or has_keywords else False
 
 def rate_limiter(ip, window=60, limit=10):
     now = time.time()
@@ -86,7 +85,7 @@ async def analyze_scene(
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "Enter a valid scene or script excerpt for analysis. Scene generation is not supported."}
+        return {"error": "Please enter a valid cinematic scene, script excerpt, dialogue, or monologue. Random or incomplete text is not supported."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -100,23 +99,19 @@ async def analyze_scene(
     }
 
     prompt = f"""
-You are SceneCraft AI — a wise, creative, and cinematic mentor trained in every aspect of storytelling, screenwriting, direction, editing, and visual storytelling across eras and cultures.
+You are SceneCraft AI — a master-level cinematic analyst and creative mentor.
+You understand every layer of the filmmaking process: writing, direction, editing, sound, psychology, realism, blocking, cinematography, and audience experience.
+You do not generate content. You analyze user-submitted scenes with depth, creativity, and professionalism.
 
-Your job is to analyze scenes as if you're mentoring a writer or filmmaker. Never generate content. Focus only on what the user gave you.
+Rules:
+- Detect and interpret the input as a scene, script, monologue, or dialogue. Reject casual or random text.
+- Apply cinematic grammar, intelligence, and production insight in your feedback.
+- Include director-level notes, symbolic echoes, camera tension, visual pressure, lighting, misdirection, sound, escalation, and spatial composition — interpret and blend them into human-readable output.
+- Your analysis must be helpful, intuitive, and grounded in global cinema examples — modern and classic.
+- Always include relevant movie scene references (no quotes) in both analysis and suggestions.
+- Suggestions should be gentle and practical — no heavy rewrites. Suggest emotional tone shifts, rhythm adjustments, or spatial dynamics.
 
-Here’s how you should respond:
-- Make your feedback inspiring, practical, and human.
-- Avoid academic terms. Use movie examples or intuitive phrases instead of naming concepts like 'Chekhov’s Gun'.
-- Be honest, but never discouraging. Speak with the voice of an experienced screen doctor or story consultant.
-- Help the user find clarity, rhythm, emotional connection, tension, character drive, and cinematic strength in the scene.
-- Do not reference cinematic 'rules' or internal benchmarks. Use creative analogies, examples, and friendly advice.
-- Highlight strengths and areas for improvement naturally.
-
-When needed, compare moments in the user’s scene to great scenes from world cinema — subtly, without quoting lines.
-
-🎬 Suggestions section must include helpful, fun rewrite ideas that stir the writer’s imagination. (e.g., “You might let the tension build longer, like that quiet kitchen moment in *A Separation*.”)
-
-🎯 Your tone: human, grounded, warm, film-literate — like a screenwriter’s best creative partner.
+Tone: Creative, grounded, warm — like a director talking to another filmmaker.
 
 Scene:
 {data.scene}
@@ -125,10 +120,7 @@ Scene:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {
-                "role": "system",
-                "content": "You are a skilled cinematic mentor. You never generate scenes. You analyze real cinematic material with creative, example-rich, and human feedback."
-            },
+            {"role": "system", "content": "You are a human-like film mentor. Never generate or fix scenes. Always interpret with full cinematic insight and give engaging, example-based guidance."},
             {"role": "user", "content": prompt}
         ]
     }
@@ -145,65 +137,46 @@ Scene:
             content = result["choices"][0]["message"]["content"]
             return {
                 "analysis": content.strip(),
-                "notice": "⚠️ You are responsible for the legality and originality of your submission. SceneCraft provides cinematic analysis only — not legal validation or copyright protection."
+                "notice": "\u26a0\ufe0f You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
             }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.get("/password")
-def get_password(admin: str = Query(...)):
-    if admin != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Unauthorized admin access")
-    try:
-        with open(PASSWORD_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {"password": STORED_PASSWORD}
-
-@app.post("/password/reset")
-def reset_password(admin: str = Query(...)):
-    if admin != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Unauthorized admin access")
-    rotate_password()
-    return {"message": "Password manually rotated.", "new_password": STORED_PASSWORD}
-
-@app.get("/")
-def root():
-    return {"message": "SceneCraft backend is live."}
-
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
-    html = """
+    return HTMLResponse(content="""
     <html>
-      <head><title>SceneCraft – Terms & Conditions</title></head>
-      <body style="font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; line-height: 1.6;">
-        <h2>SceneCraft – Legal Notice & Terms of Use</h2>
+      <head><title>SceneCraft – Terms of Use</title></head>
+      <body style='font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; line-height: 1.6;'>
+        <h2>SceneCraft – Legal Terms & Usage Policy</h2>
+        <h3>User Agreement</h3>
+        <p>By using SceneCraft, you agree to submit only content that you own or are authorized to analyze. You understand this tool is for creative analysis only and not content generation.</p>
 
         <h3>Legal Disclaimer</h3>
-        <p>SceneCraft is an AI-powered cinematic analysis tool. It does not generate, reproduce, or store any copyrighted scenes. It only analyzes user-submitted content in real-time using benchmarked cinematic knowledge.</p>
-
-        <h3>User Agreement</h3>
-        <p>By using SceneCraft, you confirm that you are submitting original content that you own or are authorized to analyze. You agree not to submit copyrighted material you do not have rights to.</p>
+        <p>SceneCraft does not store, copy, or generate any content. It offers AI-assisted cinematic analysis using global film language benchmarks and storytelling intelligence. You remain the owner of all submitted content.</p>
 
         <h3>Usage Policy</h3>
         <ul>
-          <li>SceneCraft is strictly for cinematic analysis only.</li>
-          <li>SceneCraft does not generate or edit scripts, nor does it produce original content.</li>
-          <li>Abuse of this tool may result in blocked access.</li>
+          <li>Submit only cinematic scenes, monologues, dialogues, or script excerpts.</li>
+          <li>No casual text, random prompts, or scene generation is allowed.</li>
+          <li>Usage may be limited or monitored to prevent abuse or copyright risk.</li>
         </ul>
 
-        <h3>Copyright Warning</h3>
-        <p>You are solely responsible for the legality of the material you submit. Submitting copyrighted material you do not own may violate local and international copyright laws.</p>
+        <h3>Copyright Responsibility</h3>
+        <p>You are solely responsible for the legality and authorship of the material submitted. SceneCraft cannot verify copyright ownership and does not offer legal protection or certification.</p>
 
-        <h3>Content Logging</h3>
-        <p>All usage is tracked anonymously for rate limiting and content responsibility.</p>
+        <h3>About SceneCraft</h3>
+        <p>SceneCraft is a cinematic feedback and education tool, blending behavioral realism, cinematic grammar, production design, and visual storytelling into meaningful analysis. It is not a content creation engine.</p>
 
-        <p style="margin-top: 2rem;"><em>SceneCraft is a creative companion, not a publishing platform. Use it wisely.</em></p>
+        <p style="margin-top: 2rem;"><em>SceneCraft empowers creators through creative insight, not automation. Every scene has a soul — we help you reveal it.</em></p>
         <hr />
         <p>© SceneCraft 2025. All rights reserved.</p>
       </body>
     </html>
-    """
-    return HTMLResponse(content=html)
+    """)
+
+@app.get("/")
+def root():
+    return {"message": "SceneCraft backend is live."}
