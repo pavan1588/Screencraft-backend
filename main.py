@@ -1,3 +1,5 @@
+# === SceneCraft Backend with T&C, Privacy Policy, Logging ===
+
 from fastapi import FastAPI, HTTPException, Request, Header, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -58,6 +60,18 @@ def rotate_password():
         json.dump({"password": new_token}, f)
     print("Password rotated to:", new_token)
 
+def log_usage(ip, scene_snippet):
+    log_entry = {
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
+        "ip": ip,
+        "snippet": scene_snippet[:250].strip().replace("\n", " ")
+    }
+    try:
+        with open("scenecraft_logs.json", "a") as log_file:
+            log_file.write(json.dumps(log_entry) + "\n")
+    except Exception as e:
+        print("Logging failed:", e)
+
 @app.post("/analyze")
 async def analyze_scene(request: Request, data: SceneRequest, authorization: str = Header(None)):
     global PASSWORD_USAGE_COUNT, STORED_PASSWORD
@@ -80,6 +94,8 @@ async def analyze_scene(request: Request, data: SceneRequest, authorization: str
     if not is_valid_scene(data.scene):
         return {"error": "Scene generation is not supported. Please input a valid cinematic excerpt for analysis only."}
 
+    log_usage(ip, data.scene)
+
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
@@ -98,86 +114,64 @@ Evaluate the following scene/script input based on the most comprehensive set of
 
 Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', or 'Cinematic Grammar'. Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. End with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising.
 
-Use the following benchmarks internally to guide your critique:
-- Scene structure and emotional beats: setup, trigger, tension, conflict, climax, resolution
-- Cinematic grammar and pacing: coherence, continuity, spatial logic, transitions, cinematic rhythm
-- Genre effectiveness: whether the scene delivers the emotional and structural expectations of its genre, how it adapts to modern audience tastes
-- Audience reaction prediction: how different types of audiences (festivals, mainstream, OTT, global cinema lovers) may react to this scene based on past works and current trends
-- Realism and character psychology: is behavior authentic, emotionally truthful, rooted in believable motivation or therapy-style realism
-- Use of visuals and emotion: visual cues, camera, lighting, spatial emotion, editing tempo — but only if implied or described
-- Sound, tone, music: analyze sound design and BGM only if hinted or described by the writer, no assumptions
-- Editing: visual tempo, spatial cohesion, rhythm, cutting pattern, style (linear/nonlinear)
-- Tone and symbolism: layered meaning, metaphorical devices, emotional undertones
-- Voice and originality: does the writing show a unique voice or perspective? Draw influence from great writers, directors, editors, and novelists (no names)
-- Scene-building from literary and real-event influences: does the scene show influence of novelistic detail, experiential realism, or real-life structure
-- Structure resonance: how this scene fits in a larger story arc and what it tells us about world-building
-- Call out when the scene lacks cinematic depth, believability, or execution detail. Do not flatter. Do not generate scenes.
-
-Additional storytelling principles to apply:
-- Chekhov’s Gun
-- Setup and Payoff
-- The Iceberg Theory (Hemingway)
-- Show, Don’t Tell
-- Dramatic Irony
-- Save the Cat
-- Circular Storytelling
-- The MacGuffin
-- Symmetry & Asymmetry in Character Arcs
-- The Button Line
-
-Additional cinematic/directing principles to apply:
-- Visual Grammar
-- Symbolic Echoes
-- The Rule of Three (visual/comic pacing)
-- Camera Framing & Composition
-- Blocking & Physical Distance
-- Lighting for Emotional Tone
-- Escalation (Scene Tension Curve)
-- Cognitive Misdirection (via editing)
-- Shot-Reverse-Shot for Conflict/Subtext
-- Sound Design as Narrative Tool
-
 {data.scene}
 """
 
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a professional cinematic scene analyst with expertise in realism, audience psychology, screenwriting, directing, and literary storytelling. "
-                    "Never generate new scenes. Avoid formatting the output with visible section headers like 'Scene Structure', 'Realism', 'Cinematic Grammar'. "
-                    "Your analysis must feel cohesive and natural, like a human expert offering a review in fluid prose. Integrate all cinematic benchmarks into flowing analysis. "
-                    "End the analysis with a clearly marked section titled 'Suggestions' (one only), blending simple guidance and technical language with examples. "
-                    "Suggestions should offer actionable feedback for both beginners and experienced writers working in film, OTT, or advertising."
-                )
-            },
+            {"role": "system", "content": "You are a professional cinematic scene analyst with expertise in screenwriting, directing, realism, and audience psychology. Never generate new scenes."},
             {"role": "user", "content": prompt}
         ]
     }
 
     try:
         async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers=headers,
-                json=payload
-            )
+            response = await client.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            legal_notice = (
-                "\n\n—\n⚠️ Legal Notice:\n"
-                "SceneCraft is an educational analysis tool. The AI does not generate, reproduce, or verify ownership of submitted content. "
-                "By using SceneCraft, you confirm that you own the rights to the material or are using it for fair use critique. "
-                "Reproduction of copyrighted material is the sole responsibility of the user."
-            )
+            legal_notice = ("\n\n—\n⚠️ Legal Notice:\n"
+                            "SceneCraft is an educational analysis tool. The AI does not generate, reproduce, or verify ownership of submitted content. "
+                            "By using SceneCraft, you confirm that you own the rights to the material or are using it for fair use critique. "
+                            "Reproduction of copyrighted material is the sole responsibility of the user.")
             return {"analysis": content.strip() + legal_notice}
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/terms")
+def terms_of_service():
+    return {
+        "title": "Terms & Conditions",
+        "content": """
+SceneCraft is a cinematic analysis tool designed for educational and professional feedback only.
+
+By using this service, you confirm that:
+- You own or have rights to the content submitted.
+- You will not use this service to plagiarize or reproduce copyrighted material.
+- All analysis is provided for insight only and is not a replacement for professional script consultancy.
+
+SceneCraft does not store user content beyond necessary logs for abuse prevention and debugging.
+We reserve the right to suspend access for misuse or repeated copyright violations.
+"""
+    }
+
+@app.get("/policy")
+def privacy_policy():
+    return {
+        "title": "Privacy Policy",
+        "content": """
+SceneCraft collects limited data (IP address, timestamps) for rate limiting, abuse prevention, and usage monitoring.
+
+We do not share, sell, or reuse your submitted scenes. No personal data is stored long-term.
+
+By using this tool, you agree to this data policy and confirm you are submitting material you own or have rights to analyze.
+
+Contact us if you believe any copyrighted material was used improperly.
+"""
+    }
 
 @app.get("/password")
 def get_password(admin: str = Query(...)):
