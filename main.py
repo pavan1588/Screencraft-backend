@@ -6,8 +6,8 @@ import os
 import re
 import time
 import json
-import datetime
-from starlette.responses import HTMLResponse
+from datetime import datetime
+from starlette.responses import HTMLResponse, JSONResponse
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
@@ -29,7 +29,7 @@ PASSWORD_USAGE_COUNT = 0
 STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
-LOG_FILE = "scenecraft_logs.jsonl"
+IP_LOG_FILE = "scenecraft_iplog.json"
 
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
@@ -57,7 +57,21 @@ def rotate_password():
     PASSWORD_USAGE_COUNT = 0
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
-    print("Password rotated to:", new_token)
+
+def log_ip_usage(ip: str, scene: str):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    log_entry = {"ip": ip, "timestamp": timestamp, "length": len(scene)}
+    try:
+        if os.path.exists(IP_LOG_FILE):
+            with open(IP_LOG_FILE, "r") as f:
+                logs = json.load(f)
+        else:
+            logs = []
+        logs.append(log_entry)
+        with open(IP_LOG_FILE, "w") as f:
+            json.dump(logs, f, indent=2)
+    except Exception as e:
+        print("Logging error:", e)
 
 @app.post("/analyze")
 async def analyze_scene(
@@ -89,21 +103,11 @@ async def analyze_scene(
     if not is_valid_scene(data.scene):
         return {"error": "Please enter a valid cinematic scene, script excerpt, dialogue, or monologue. Random or incomplete text is not supported."}
 
+    log_ip_usage(ip, data.scene)
+
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
-
-    # Lightweight logging
-    log_entry = {
-        "timestamp": datetime.datetime.utcnow().isoformat(),
-        "ip": ip,
-        "scene_preview": data.scene.strip()[:250]
-    }
-    try:
-        with open(LOG_FILE, "a") as log_file:
-            log_file.write(json.dumps(log_entry) + "\n")
-    except Exception as log_error:
-        print(f"[SceneCraft] Logging failed: {log_error}")
 
     headers = {
         "Authorization": f"Bearer {api_key}",
@@ -121,10 +125,11 @@ Rules:
 - Detect and interpret the input as a scene, script, monologue, or dialogue. Reject casual or random text.
 - Apply cinematic grammar, intelligence, and production insight in your feedback.
 - Include director-level notes, symbolic echoes, camera tension, visual pressure, lighting, misdirection, sound, escalation, and spatial composition — interpret and blend them into human-readable output.
-- Include hidden memorability analysis. If the scene lacks sticking power, say so subtly.
-- Nudge writers with a subtle “What if…” to explore alternate creative angles.
+- Your analysis must be helpful, intuitive, and grounded in global cinema examples — modern and classic.
 - Always include relevant movie scene references (no quotes) in both analysis and suggestions.
-- Suggestions should be gentle and practical — no heavy rewrites.
+- Suggestions should be gentle and practical — no heavy rewrites. Suggest emotional tone shifts, rhythm adjustments, or spatial dynamics.
+- Include a subtle line about memorability if the scene lacks emotional stickiness.
+- Add a soft “What if…” style exploration nudge to spark creative play.
 
 Tone: Creative, grounded, warm — like a director talking to another filmmaker.
 
@@ -135,10 +140,7 @@ Scene:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {
-                "role": "system",
-                "content": "You are a human-like film mentor. Never generate or fix scenes. Always interpret with full cinematic insight and give engaging, example-based guidance."
-            },
+            {"role": "system", "content": "You are a human-like film mentor. Never generate or fix scenes. Always interpret with full cinematic insight and give engaging, example-based guidance."},
             {"role": "user", "content": prompt}
         ]
     }
@@ -162,35 +164,64 @@ Scene:
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
     return HTMLResponse(content="""
-    <html><head><title>SceneCraft – Terms of Use</title></head>
-    <body style='font-family:sans-serif;padding:2rem;max-width:700px;margin:auto;line-height:1.6;'>
-    <h2>SceneCraft – Legal Terms & Usage Policy</h2>
-    <p>By using SceneCraft, you agree to submit only content that you own or are authorized to analyze...</p>
-    <p>SceneCraft offers cinematic feedback and insight. It does not verify copyright ownership or generate scenes.</p>
-    <p>All analyses are purely advisory. Final responsibility for copyright and legality lies with the user.</p>
-    <hr/><p>© SceneCraft 2025</p></body></html>
+    <html>
+      <head><title>SceneCraft – Terms of Use</title></head>
+      <body style='font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; line-height: 1.6;'>
+        <h2>SceneCraft – Legal Terms & Usage Policy</h2>
+        <h3>User Agreement</h3>
+        <p>By using SceneCraft, you agree to submit only content that you own or are authorized to analyze. You understand this tool is for creative analysis only and not content generation.</p>
+
+        <h3>Legal Disclaimer</h3>
+        <p>SceneCraft does not store, copy, or generate any content. It offers AI-assisted cinematic analysis using global film language benchmarks and storytelling intelligence. You remain the owner of all submitted content.</p>
+
+        <h3>Usage Policy</h3>
+        <ul>
+          <li>Submit only cinematic scenes, monologues, dialogues, or script excerpts.</li>
+          <li>No casual text, random prompts, or scene generation is allowed.</li>
+          <li>Usage may be limited or monitored to prevent abuse or copyright risk.</li>
+        </ul>
+
+        <h3>Copyright Responsibility</h3>
+        <p>You are solely responsible for the legality and authorship of the material submitted. SceneCraft cannot verify copyright ownership and does not offer legal protection or certification.</p>
+
+        <h3>About SceneCraft</h3>
+        <p>SceneCraft is a cinematic feedback and education tool, blending behavioral realism, cinematic grammar, production design, and visual storytelling into meaningful analysis. It is not a content creation engine.</p>
+
+        <p style="margin-top: 2rem;"><em>SceneCraft empowers creators through creative insight, not automation. Every scene has a soul — we help you reveal it.</em></p>
+        <hr />
+        <p>© SceneCraft 2025. All rights reserved.</p>
+      </body>
+    </html>
     """)
+
 
 @app.get("/admin/logs")
 def get_logs(admin: str = Query(...)):
     if admin != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Unauthorized")
+        raise HTTPException(status_code=403, detail="Unauthorized admin access")
     try:
-        with open(LOG_FILE, "r") as f:
-            lines = f.readlines()[-50:]  # limit to last 50 entries
-            return {"logs": [json.loads(line) for line in lines]}
+        with open(IP_LOG_FILE, "r") as f:
+            logs = json.load(f)
+        return JSONResponse(content=logs)
     except:
         return {"logs": []}
 
-@app.get("/admin/password/update")
-def update_password(admin: str = Query(...)):
+
+@app.post("/admin/change-password")
+def change_password(new: str = Query(...), admin: str = Query(...)):
+    global STORED_PASSWORD, PASSWORD_USAGE_COUNT
     if admin != ADMIN_PASSWORD:
         raise HTTPException(status_code=403, detail="Unauthorized admin access")
-    rotate_password()
-    return {"message": "Password has been updated.", "new_password": STORED_PASSWORD}
+    STORED_PASSWORD = new
+    PASSWORD_USAGE_COUNT = 0
+    with open(PASSWORD_FILE, "w") as f:
+        json.dump({"password": new}, f)
+    return {"message": "Password updated successfully", "new_password": new}
+
 
 @app.get("/")
 def root():
