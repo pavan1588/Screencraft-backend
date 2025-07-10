@@ -107,6 +107,8 @@ Rules:
 - Detect and interpret the input as a scene, script, monologue, or dialogue. Reject casual or random text.
 - Apply cinematic grammar, intelligence, and production insight in your feedback.
 - Include director-level notes, symbolic echoes, camera tension, visual pressure, lighting, misdirection, sound, escalation, and spatial composition — interpret and blend them into human-readable output.
+- Include hidden memorability analysis — if the scene may not linger in the viewer’s mind, call that out naturally.
+- Offer creative 'what-if' exploration nudges to open up experimentation and imagination.
 - Your analysis must be helpful, intuitive, and grounded in global cinema examples — modern and classic.
 - Always include relevant movie scene references (no quotes) in both analysis and suggestions.
 - Suggestions should be gentle and practical — no heavy rewrites. Suggest emotional tone shifts, rhythm adjustments, or spatial dynamics.
@@ -145,9 +147,9 @@ Scene:
 
             analysis_text = content.strip() if content else "Analysis could not be completed. Please check your input or try again."
 
-            # Remove benchmark labels (Scene Grammar:, Suggestions:, etc.)
+            # Remove benchmark labels
             cleaned_text = re.sub(
-                r"(?i)(Scene Grammar:|Suggestions:|Scene Type:|Cinematic Benchmarks:|Analysis:)",
+                r"(?i)(Scene Grammar:|Suggestions:|Scene Type:|Cinematic Benchmarks:|Analysis:|Memorability Analysis:|Exploration Angle:)",
                 "",
                 analysis_text
             )
@@ -161,7 +163,6 @@ Scene:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
