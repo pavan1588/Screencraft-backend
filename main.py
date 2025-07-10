@@ -6,8 +6,7 @@ import os
 import re
 import time
 import json
-from datetime import datetime
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
 app = FastAPI()
@@ -29,7 +28,6 @@ PASSWORD_USAGE_COUNT = 0
 STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
-IP_LOG_FILE = "scenecraft_iplog.json"
 
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
@@ -57,21 +55,7 @@ def rotate_password():
     PASSWORD_USAGE_COUNT = 0
     with open(PASSWORD_FILE, "w") as f:
         json.dump({"password": new_token}, f)
-
-def log_ip_usage(ip: str, scene: str):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    log_entry = {"ip": ip, "timestamp": timestamp, "length": len(scene)}
-    try:
-        if os.path.exists(IP_LOG_FILE):
-            with open(IP_LOG_FILE, "r") as f:
-                logs = json.load(f)
-        else:
-            logs = []
-        logs.append(log_entry)
-        with open(IP_LOG_FILE, "w") as f:
-            json.dump(logs, f, indent=2)
-    except Exception as e:
-        print("Logging error:", e)
+    print("Password rotated to:", new_token)
 
 @app.post("/analyze")
 async def analyze_scene(
@@ -103,8 +87,6 @@ async def analyze_scene(
     if not is_valid_scene(data.scene):
         return {"error": "Please enter a valid cinematic scene, script excerpt, dialogue, or monologue. Random or incomplete text is not supported."}
 
-    log_ip_usage(ip, data.scene)
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
@@ -125,11 +107,11 @@ Rules:
 - Detect and interpret the input as a scene, script, monologue, or dialogue. Reject casual or random text.
 - Apply cinematic grammar, intelligence, and production insight in your feedback.
 - Include director-level notes, symbolic echoes, camera tension, visual pressure, lighting, misdirection, sound, escalation, and spatial composition — interpret and blend them into human-readable output.
+- Include hidden memorability analysis — if the scene may not linger in the viewer’s mind, call that out naturally.
+- Offer creative 'what-if' exploration nudges to open up experimentation and imagination.
 - Your analysis must be helpful, intuitive, and grounded in global cinema examples — modern and classic.
 - Always include relevant movie scene references (no quotes) in both analysis and suggestions.
 - Suggestions should be gentle and practical — no heavy rewrites. Suggest emotional tone shifts, rhythm adjustments, or spatial dynamics.
-- Include a subtle line about memorability if the scene lacks emotional stickiness.
-- Add a soft “What if…” style exploration nudge to spark creative play.
 
 Tone: Creative, grounded, warm — like a director talking to another filmmaker.
 
@@ -140,7 +122,10 @@ Scene:
     payload = {
         "model": "mistralai/mistral-7b-instruct",
         "messages": [
-            {"role": "system", "content": "You are a human-like film mentor. Never generate or fix scenes. Always interpret with full cinematic insight and give engaging, example-based guidance."},
+            {
+                "role": "system",
+                "content": "You are a human-like film mentor. Never generate or fix scenes. Always interpret with full cinematic insight and give engaging, example-based guidance."
+            },
             {"role": "user", "content": prompt}
         ]
     }
@@ -154,16 +139,30 @@ Scene:
             )
             response.raise_for_status()
             result = response.json()
+
+            if "choices" not in result or not result["choices"]:
+                raise HTTPException(status_code=502, detail="No analysis returned from the AI engine.")
+
             content = result["choices"][0]["message"]["content"]
+
+            analysis_text = content.strip() if content else "Analysis could not be completed. Please check your input or try again."
+
+            # Remove benchmark labels
+            cleaned_text = re.sub(
+                r"(?i)(Scene Grammar:|Suggestions:|Scene Type:|Cinematic Benchmarks:|Analysis:|Memorability Analysis:|Exploration Angle:)",
+                "",
+                analysis_text
+            )
+
             return {
-                "analysis": content.strip(),
-                "notice": "\u26a0\ufe0f You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
+                "analysis": cleaned_text,
+                "notice": "⚠️ You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
             }
+
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
@@ -197,31 +196,6 @@ def terms():
       </body>
     </html>
     """)
-
-
-@app.get("/admin/logs")
-def get_logs(admin: str = Query(...)):
-    if admin != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Unauthorized admin access")
-    try:
-        with open(IP_LOG_FILE, "r") as f:
-            logs = json.load(f)
-        return JSONResponse(content=logs)
-    except:
-        return {"logs": []}
-
-
-@app.post("/admin/change-password")
-def change_password(new: str = Query(...), admin: str = Query(...)):
-    global STORED_PASSWORD, PASSWORD_USAGE_COUNT
-    if admin != ADMIN_PASSWORD:
-        raise HTTPException(status_code=403, detail="Unauthorized admin access")
-    STORED_PASSWORD = new
-    PASSWORD_USAGE_COUNT = 0
-    with open(PASSWORD_FILE, "w") as f:
-        json.dump({"password": new}, f)
-    return {"message": "Password updated successfully", "new_password": new}
-
 
 @app.get("/")
 def root():
