@@ -127,10 +127,10 @@ You must:
 - Never rewrite, reword, or generate scenes
 - Analyze based on cinematic grammar, psychology, realism, tone, structure, direction
 - Offer insight that reflects professional understanding of storytelling and directing
-- Evaluate memorability — how and why a moment may or may not stick with an audience
-- Invite creative experimentation — suggest small hypothetical shifts, "what if..." paths
-- Draw inspiration from global screenwriting and literary masters across genres, without naming or quoting them
-- Always include a Suggestions section and a human-style Exploration Angle
+- Help writers elevate scene impact with subtle refinements
+- Invite small hypothetical shifts and alternate directions without calling them out as such
+- Draw inspiration from global writing styles without naming or quoting anyone
+- Always include specific suggestions and help unlock deeper choices
 
 Scene:
 {data.scene}
@@ -141,7 +141,7 @@ Scene:
         "messages": [
             {
                 "role": "system",
-                "content": "You are SceneCraft AI — a human-style script doctor. Never generate or rewrite content. Offer creative, structured, psychologically aware analysis. Keep your voice professional yet friendly. Highlight strengths and weaknesses clearly. Encourage writers to explore deeper ideas through memorability, experimentation, and world-class inspiration — but without naming real-world authors or quoting scenes."
+                "content": "You are SceneCraft AI — a human-style script doctor. Never generate or rewrite content. Offer creative, structured, psychologically aware analysis. Keep your voice professional yet friendly. Highlight strengths and weaknesses clearly. Help the writer rethink and deepen their work through subtle cues and natural guidance — without explicitly labeling techniques."
             },
             {"role": "user", "content": prompt}
         ]
@@ -191,7 +191,7 @@ def terms():
         <p>You are fully responsible for the originality and rights of the content you submit. SceneCraft does not store or certify authorship.</p>
 
         <h3>About SceneCraft</h3>
-        <p>SceneCraft is a cinematic assistant. It brings together story grammar, realism, editing cues, memorability insights, experimentation prompts, and audience psychology to help writers sharpen their scenes with professional clarity.</p>
+        <p>SceneCraft is a cinematic assistant. It brings together story grammar, realism, editing cues, inspiration, and audience psychology to help writers sharpen their scenes with professional clarity.</p>
 
         <p style=\"margin-top: 2rem;\"><em>Created for filmmakers, storytellers, and writers who want sharper scenes, not shortcuts.</em></p>
         <hr />
