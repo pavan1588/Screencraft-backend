@@ -31,10 +31,27 @@ PASSWORD_FILE = "scenecraft_password.json"
 
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
-    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
+    rewrite_requests = [
+        "rewrite this",
+        "can you rewrite",
+        "write a better version",
+        "fix this scene",
+        "make this better",
+        "reword this",
+        "polish this scene",
+        "improve this dialogue",
+        "generate a version",
+        "regenerate",
+        "compose a new scene"
+    ]
     text_lower = text.lower()
-    if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
+
+    if any(req in text_lower for req in rewrite_requests):
         return False
+
+    if len(text.strip()) < 30 or text_lower in greetings:
+        return False
+
     has_keywords = any(word in text_lower for word in ["scene", "dialogue", "monologue", "script", "character"])
     has_format_clues = re.search(r"[A-Z]{2,}:|\(.*?\)|\bINT\.|\bEXT\.|\bCUT TO:|\bFADE IN:", text)
     return True if has_format_clues or has_keywords else False
@@ -85,7 +102,7 @@ async def analyze_scene(
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "Please enter a valid cinematic scene, script excerpt, dialogue, or monologue. Random or incomplete text is not supported."}
+        return {"error": "❌ SceneCraft only analyzes valid cinematic scenes, dialogues, or monologues. It cannot accept generation or rewrite requests."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -101,16 +118,20 @@ async def analyze_scene(
     prompt = f"""
 You are SceneCraft AI — a creative mentor and expert cinematic analyst.
 
+Tone and Style:
+- Speak like a human script consultant — professional and friendly, never patronizing
+- Be specific, honest, and direct — don’t sugarcoat, but don’t discourage
+- Avoid robotic tone or academic jargon; use natural, example-driven language
+
 You must:
-- Understand what makes a scene work (structure, realism, subtext, tone, symbolism, emotion, blocking, direction, cinematic grammar)
-- Never generate or complete scenes
-- Always evaluate with fun, helpful suggestions — never academic
-- Include relevant references (e.g., scenes like the diner in *Heat*, or staircase moment in *Parasite*)
-- Use production language smartly but don’t expose technical terms like "Chekhov’s Gun", "Save the Cat", etc. Instead, explain with relatable examples
-- Blend both classic and modern cinema understanding
-- Include director-level notes, subtle rewrite hints, visual tension, scene rhythm, emotional beats
-- Make feedback human, not robotic. Your tone is supportive and creative
-- Use examples when needed: “The tension could build more like the climax in *Whiplash*.”
+- Never rewrite, reword, or generate scenes
+- Analyze based on cinematic grammar, psychology, realism, tone, structure, direction
+- Offer insight that reflects professional understanding of storytelling and directing
+- Evaluate memorability — how and why a moment may or may not stick with an audience
+- Invite creative experimentation — suggest small hypothetical shifts, "what if..." paths
+- Draw inspiration from global screenwriting and literary masters across genres, without naming or quoting them
+- Always include a Suggestions section and a human-style Exploration Angle
+
 Scene:
 {data.scene}
 """
@@ -120,7 +141,7 @@ Scene:
         "messages": [
             {
                 "role": "system",
-                "content": "You are SceneCraft AI — a creative film doctor. Never write or generate content. Offer natural, intuitive feedback using deep cinematic insight across writing, directing, editing, sound, tone, and behavioral psychology."
+                "content": "You are SceneCraft AI — a human-style script doctor. Never generate or rewrite content. Offer creative, structured, psychologically aware analysis. Keep your voice professional yet friendly. Highlight strengths and weaknesses clearly. Encourage writers to explore deeper ideas through memorability, experimentation, and world-class inspiration — but without naming real-world authors or quoting scenes."
             },
             {"role": "user", "content": prompt}
         ]
@@ -138,7 +159,7 @@ Scene:
             content = result["choices"][0]["message"]["content"]
             return {
                 "analysis": content.strip(),
-                "notice": "\u26a0\ufe0f This is a creative analysis only. You are responsible for the content and its originality."
+                "notice": "⚠️ This is a creative analysis only. You are responsible for the content and its originality."
             }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
@@ -161,7 +182,7 @@ def terms():
 
         <h3>Usage Policy</h3>
         <ul>
-          <li>Submit scenes, monologues, dialogues, or excerpts — not random text.</li>
+          <li>Submit scenes, monologues, dialogues, or excerpts — not random text or rewrite prompts.</li>
           <li>Do not submit third-party copyrighted material.</li>
           <li>All analysis is creative and not legal validation.</li>
         </ul>
@@ -170,7 +191,7 @@ def terms():
         <p>You are fully responsible for the originality and rights of the content you submit. SceneCraft does not store or certify authorship.</p>
 
         <h3>About SceneCraft</h3>
-        <p>SceneCraft is a cinematic assistant. It brings together story grammar, realism, editing cues, and audience insight to help writers and creators improve their scenes creatively.</p>
+        <p>SceneCraft is a cinematic assistant. It brings together story grammar, realism, editing cues, memorability insights, experimentation prompts, and audience psychology to help writers sharpen their scenes with professional clarity.</p>
 
         <p style=\"margin-top: 2rem;\"><em>Created for filmmakers, storytellers, and writers who want sharper scenes, not shortcuts.</em></p>
         <hr />
