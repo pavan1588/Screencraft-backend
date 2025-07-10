@@ -31,10 +31,28 @@ PASSWORD_FILE = "scenecraft_password.json"
 
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
-    command_words = ["generate", "write a scene", "compose a script", "create a scene"]
+    rewrite_requests = [
+        "rewrite this",
+        "can you rewrite",
+        "write a better version",
+        "fix this scene",
+        "make this better",
+        "reword this",
+        "polish this scene",
+        "improve this dialogue",
+        "generate a version",
+        "regenerate",
+        "compose a new scene"
+    ]
     text_lower = text.lower()
-    if len(text.strip()) < 30 or text_lower in greetings or any(cmd in text_lower for cmd in command_words):
+
+    # Block obvious generation/rewrite prompts
+    if any(req in text_lower for req in rewrite_requests):
         return False
+
+    if len(text.strip()) < 30 or text_lower in greetings:
+        return False
+
     has_keywords = any(word in text_lower for word in ["scene", "dialogue", "monologue", "script", "character"])
     has_format_clues = re.search(r"[A-Z]{2,}:|\(.*?\)|\bINT\.|\bEXT\.|\bCUT TO:|\bFADE IN:", text)
     return True if has_format_clues or has_keywords else False
@@ -85,7 +103,7 @@ async def analyze_scene(
         rotate_password()
 
     if not is_valid_scene(data.scene):
-        return {"error": "Please enter a valid cinematic scene, script excerpt, dialogue, or monologue. Random or incomplete text is not supported."}
+        return {"error": "❌ SceneCraft only analyzes valid cinematic scenes, dialogues, or monologues. It cannot accept generation or rewrite requests."}
 
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
@@ -103,18 +121,13 @@ You are SceneCraft AI — a creative mentor and expert cinematic analyst.
 
 You must:
 - Understand what makes a scene work (structure, realism, subtext, tone, symbolism, emotion, blocking, direction, cinematic grammar)
-- Never generate or complete scenes
-- Do NOT rewrite, paraphrase, or invent lines of dialogue or scene descriptions
-- Always evaluate with fun, helpful suggestions — never academic
-- Include relevant references (e.g., scenes like the diner in *Heat*, or staircase moment in *Parasite*)
-- Use production language smartly but don’t expose technical terms like \"Chekhov’s Gun\", \"Save the Cat\", etc. Instead, explain with relatable examples
-- Blend both classic and modern cinema understanding
-- Include director-level notes, subtle rewrite hints, visual tension, scene rhythm, emotional beats
-- Make feedback human, not robotic. Your tone is supportive and creative
-- Use examples when needed: “The tension could build more like the climax in *Whiplash*.”
-- Analyze **memorability** of the scene based on emotional residue, symbolic hooks, and uniqueness. Inject this subtly in the feedback.
-- Include an **experimental nudge**: let the writer imagine bold or unexpected directions to explore further
-- Always end with **Suggestions:** followed by an **Exploration Angle:** that invites creative alternatives rather than corrections only
+- Never generate, rewrite, or complete scenes
+- Do NOT paraphrase, reword or invent new lines or versions
+- Always evaluate with subtle, helpful suggestions — never rewrite
+- Include references only for analysis (e.g., scenes like the diner in *Heat*)
+- Blend classic and modern cinema insight
+- Include visual tension, emotional beats, genre awareness, memorability and story rhythm
+- End with Suggestions and Exploration Angle
 Scene:
 {data.scene}
 """
@@ -124,7 +137,7 @@ Scene:
         "messages": [
             {
                 "role": "system",
-                "content": "You are SceneCraft AI — a creative film doctor. Never write or generate content. Never rewrite or compose scenes. Offer natural, intuitive feedback using deep cinematic insight across writing, directing, editing, sound, tone, and behavioral psychology."
+                "content": "You are SceneCraft AI — a creative analyst. Never generate, rewrite, or compose content. Offer cinematic feedback only."
             },
             {"role": "user", "content": prompt}
         ]
@@ -140,12 +153,9 @@ Scene:
             response.raise_for_status()
             result = response.json()
             content = result["choices"][0]["message"]["content"]
-            # Block rewritten scenes in the output
-            if any(keyword in content.lower() for keyword in ["int.", "ext.", "cut to:", "fade in:", "scene:"]):
-                raise HTTPException(status_code=400, detail="Output rejected: SceneCraft does not generate or rewrite scenes. Please revise your input request.")
             return {
                 "analysis": content.strip(),
-                "notice": "\u26a0\ufe0f This is a creative analysis only. You are responsible for the content and its originality."
+                "notice": "⚠️ This is a creative analysis only. You are responsible for the content and its originality."
             }
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
@@ -168,7 +178,7 @@ def terms():
 
         <h3>Usage Policy</h3>
         <ul>
-          <li>Submit scenes, monologues, dialogues, or excerpts — not random text.</li>
+          <li>Submit scenes, monologues, dialogues, or excerpts — not random text or rewrite prompts.</li>
           <li>Do not submit third-party copyrighted material.</li>
           <li>All analysis is creative and not legal validation.</li>
         </ul>
