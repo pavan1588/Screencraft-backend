@@ -6,6 +6,7 @@ import os
 import re
 import time
 import json
+import datetime
 from starlette.responses import HTMLResponse
 from starlette.status import HTTP_429_TOO_MANY_REQUESTS
 
@@ -28,6 +29,7 @@ PASSWORD_USAGE_COUNT = 0
 STORED_PASSWORD = os.getenv("SCENECRAFT_PASSWORD", "SCENECRAFT-2024")
 ADMIN_PASSWORD = os.getenv("SCENECRAFT_ADMIN_KEY", "ADMIN-ACCESS-1234")
 PASSWORD_FILE = "scenecraft_password.json"
+LOG_FILE = "scenecraft_logs.jsonl"
 
 def is_valid_scene(text: str) -> bool:
     greetings = ["hi", "hello", "hey", "good morning", "good evening"]
@@ -91,6 +93,18 @@ async def analyze_scene(
     if not api_key:
         raise HTTPException(status_code=500, detail="Missing OpenRouter API key")
 
+    # Lightweight logging
+    log_entry = {
+        "timestamp": datetime.datetime.utcnow().isoformat(),
+        "ip": ip,
+        "scene_preview": data.scene.strip()[:250]
+    }
+    try:
+        with open(LOG_FILE, "a") as log_file:
+            log_file.write(json.dumps(log_entry) + "\n")
+    except Exception as log_error:
+        print(f"[SceneCraft] Logging failed: {log_error}")
+
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -107,11 +121,10 @@ Rules:
 - Detect and interpret the input as a scene, script, monologue, or dialogue. Reject casual or random text.
 - Apply cinematic grammar, intelligence, and production insight in your feedback.
 - Include director-level notes, symbolic echoes, camera tension, visual pressure, lighting, misdirection, sound, escalation, and spatial composition — interpret and blend them into human-readable output.
-- Include hidden memorability analysis — if the scene may not linger in the viewer’s mind, call that out naturally.
-- Offer creative 'what-if' exploration nudges to open up experimentation and imagination.
-- Your analysis must be helpful, intuitive, and grounded in global cinema examples — modern and classic.
+- Include hidden memorability analysis. If the scene lacks sticking power, say so subtly.
+- Nudge writers with a subtle “What if…” to explore alternate creative angles.
 - Always include relevant movie scene references (no quotes) in both analysis and suggestions.
-- Suggestions should be gentle and practical — no heavy rewrites. Suggest emotional tone shifts, rhythm adjustments, or spatial dynamics.
+- Suggestions should be gentle and practical — no heavy rewrites.
 
 Tone: Creative, grounded, warm — like a director talking to another filmmaker.
 
@@ -139,26 +152,11 @@ Scene:
             )
             response.raise_for_status()
             result = response.json()
-
-            if "choices" not in result or not result["choices"]:
-                raise HTTPException(status_code=502, detail="No analysis returned from the AI engine.")
-
             content = result["choices"][0]["message"]["content"]
-
-            analysis_text = content.strip() if content else "Analysis could not be completed. Please check your input or try again."
-
-            # Remove benchmark labels
-            cleaned_text = re.sub(
-                r"(?i)(Scene Grammar:|Suggestions:|Scene Type:|Cinematic Benchmarks:|Analysis:|Memorability Analysis:|Exploration Angle:)",
-                "",
-                analysis_text
-            )
-
             return {
-                "analysis": cleaned_text,
-                "notice": "⚠️ You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
+                "analysis": content.strip(),
+                "notice": "\u26a0\ufe0f You are responsible for the originality and legality of your submission. SceneCraft only provides cinematic analysis — not legal validation."
             }
-
     except httpx.HTTPStatusError as e:
         raise HTTPException(status_code=e.response.status_code, detail=f"OpenRouter API error: {e.response.text}")
     except Exception as e:
@@ -167,35 +165,32 @@ Scene:
 @app.get("/terms", response_class=HTMLResponse)
 def terms():
     return HTMLResponse(content="""
-    <html>
-      <head><title>SceneCraft – Terms of Use</title></head>
-      <body style='font-family: sans-serif; padding: 2rem; max-width: 700px; margin: auto; line-height: 1.6;'>
-        <h2>SceneCraft – Legal Terms & Usage Policy</h2>
-        <h3>User Agreement</h3>
-        <p>By using SceneCraft, you agree to submit only content that you own or are authorized to analyze. You understand this tool is for creative analysis only and not content generation.</p>
-
-        <h3>Legal Disclaimer</h3>
-        <p>SceneCraft does not store, copy, or generate any content. It offers AI-assisted cinematic analysis using global film language benchmarks and storytelling intelligence. You remain the owner of all submitted content.</p>
-
-        <h3>Usage Policy</h3>
-        <ul>
-          <li>Submit only cinematic scenes, monologues, dialogues, or script excerpts.</li>
-          <li>No casual text, random prompts, or scene generation is allowed.</li>
-          <li>Usage may be limited or monitored to prevent abuse or copyright risk.</li>
-        </ul>
-
-        <h3>Copyright Responsibility</h3>
-        <p>You are solely responsible for the legality and authorship of the material submitted. SceneCraft cannot verify copyright ownership and does not offer legal protection or certification.</p>
-
-        <h3>About SceneCraft</h3>
-        <p>SceneCraft is a cinematic feedback and education tool, blending behavioral realism, cinematic grammar, production design, and visual storytelling into meaningful analysis. It is not a content creation engine.</p>
-
-        <p style="margin-top: 2rem;"><em>SceneCraft empowers creators through creative insight, not automation. Every scene has a soul — we help you reveal it.</em></p>
-        <hr />
-        <p>© SceneCraft 2025. All rights reserved.</p>
-      </body>
-    </html>
+    <html><head><title>SceneCraft – Terms of Use</title></head>
+    <body style='font-family:sans-serif;padding:2rem;max-width:700px;margin:auto;line-height:1.6;'>
+    <h2>SceneCraft – Legal Terms & Usage Policy</h2>
+    <p>By using SceneCraft, you agree to submit only content that you own or are authorized to analyze...</p>
+    <p>SceneCraft offers cinematic feedback and insight. It does not verify copyright ownership or generate scenes.</p>
+    <p>All analyses are purely advisory. Final responsibility for copyright and legality lies with the user.</p>
+    <hr/><p>© SceneCraft 2025</p></body></html>
     """)
+
+@app.get("/admin/logs")
+def get_logs(admin: str = Query(...)):
+    if admin != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    try:
+        with open(LOG_FILE, "r") as f:
+            lines = f.readlines()[-50:]  # limit to last 50 entries
+            return {"logs": [json.loads(line) for line in lines]}
+    except:
+        return {"logs": []}
+
+@app.get("/admin/password/update")
+def update_password(admin: str = Query(...)):
+    if admin != ADMIN_PASSWORD:
+        raise HTTPException(status_code=403, detail="Unauthorized admin access")
+    rotate_password()
+    return {"message": "Password has been updated.", "new_password": STORED_PASSWORD}
 
 @app.get("/")
 def root():
